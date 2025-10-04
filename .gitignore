@@ -3,6 +3,8 @@
 /node_modules
 /build
 /tmp
+/.next
+tsconfig.tsbuildinfo
 
 # Logs
 logs
@@ -22,3 +24,5 @@ lerna-debug.log*
 # temp directory
 .temp
 .tmp
+
+.prompt.md

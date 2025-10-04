@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+    --background: #0f172a;
+    --background-muted: #111e36;
+    --surface: rgba(30, 41, 59, 0.85);
+    --surface-strong: rgba(15, 23, 42, 0.9);
+    --border: rgba(148, 163, 184, 0.2);
+    --accent: #38bdf8;
+    --accent-strong: #0ea5e9;
+    --success: #34d399;
+    --warning: #fbbf24;
+    --error: #f87171;
+    --text-primary: #f8fafc;
+    --text-secondary: #cbd5f5;
+    --shadow: 0 24px 72px rgba(15, 23, 42, 0.35);
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  html,
+  body {
+    @apply min-h-full bg-[radial-gradient(circle_at_top,_rgba(37,99,235,0.2),_transparent_55%)] text-slate-100;
+    margin: 0;
+    padding: 0;
+    background-color: var(--background);
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  a:hover {
+    text-decoration: underline;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font-family: inherit;
+  }
+
+  ::selection {
+    background: rgba(56, 189, 248, 0.35);
+    color: var(--text-primary);
+  }
+}
