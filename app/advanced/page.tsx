@@ -9,6 +9,32 @@ import Button from '@/components/ui/Button';
 export default function AdvancedPage(): JSX.Element {
   const { config, refresh } = useAppConfig();
 
+  const formatStatus = (status: unknown, fallback: string) => {
+    if (!status) {
+      return fallback;
+    }
+
+    if (typeof status === 'string') {
+      return status;
+    }
+
+    if (typeof status === 'object') {
+      const maybeStatus = (status as Record<string, unknown>).status ??
+        (status as Record<string, unknown>).state ??
+        (status as Record<string, unknown>).message;
+      if (typeof maybeStatus === 'string') {
+        return maybeStatus;
+      }
+      try {
+        return JSON.stringify(status);
+      } catch (_error) {
+        return fallback;
+      }
+    }
+
+    return fallback;
+  };
+
   return (
     <AppShell>
       <div className="space-y-6">
@@ -76,7 +102,35 @@ export default function AdvancedPage(): JSX.Element {
                 {config?.mockMode ? 'Mock data enabled (missing env vars)' : 'Live API mode'}
               </div>
             </li>
+            <li>
+              <strong className="text-slate-100">ChainStore peers</strong>
+              <div className="text-xs text-slate-400">
+                {config?.chainstorePeers?.length
+                  ? config.chainstorePeers.join(', ')
+                  : 'None configured'}
+              </div>
+            </li>
           </ul>
+        </Card>
+        <Card title="Edge service status" description="Live telemetry sourced via @ratio1/edge-node-client">
+          <dl className="space-y-3 text-sm text-slate-200">
+            <div>
+              <dt className="font-semibold text-slate-100">CStore</dt>
+              <dd className="text-xs text-slate-400">
+                {config?.cstoreError
+                  ? `Error: ${config.cstoreError}`
+                  : formatStatus(config?.cstoreStatus, 'Unavailable')}
+              </dd>
+            </div>
+            <div>
+              <dt className="font-semibold text-slate-100">R1FS</dt>
+              <dd className="text-xs text-slate-400">
+                {config?.r1fsError
+                  ? `Error: ${config.r1fsError}`
+                  : formatStatus(config?.r1fsStatus, 'Unavailable')}
+              </dd>
+            </div>
+          </dl>
         </Card>
         <Card
           title="CStore authentication diagnostics"

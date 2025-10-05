@@ -49,7 +49,12 @@ describe('JobForm', () => {
               redmeshApiConfigured: false,
               chainstoreApiConfigured: false,
               r1fsApiConfigured: false,
-              featureCatalog: []
+              featureCatalog: [],
+              chainstorePeers: [],
+              cstoreStatus: { mode: 'mock' },
+              r1fsStatus: { mode: 'mock' },
+              cstoreError: null,
+              r1fsError: null
             })
           } as Response);
         }

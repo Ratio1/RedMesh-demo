@@ -21,6 +21,11 @@ export interface ClientRuntimeConfig {
   chainstoreApiConfigured: boolean;
   r1fsApiConfigured: boolean;
   featureCatalog: RedMeshFeature[];
+  chainstorePeers: string[];
+  cstoreStatus: unknown;
+  r1fsStatus: unknown;
+  cstoreError: string | null;
+  r1fsError: string | null;
 }
 
 interface AppConfigContextValue {

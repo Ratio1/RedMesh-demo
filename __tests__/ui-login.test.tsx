@@ -35,19 +35,24 @@ describe('LoginForm', () => {
         if (url.endsWith('/api/config')) {
           return Promise.resolve({
             ok: true,
-          status: 200,
-          json: async () => ({
-            hostId: 'en-01',
-            mockMode: true,
-            environment: 'development',
-            swaggerUrl: null,
-            redmeshApiConfigured: false,
-            chainstoreApiConfigured: false,
-            r1fsApiConfigured: false,
-            featureCatalog: []
-          })
-        } as Response);
-      }
+            status: 200,
+            json: async () => ({
+              hostId: 'en-01',
+              mockMode: true,
+              environment: 'development',
+              swaggerUrl: null,
+              redmeshApiConfigured: false,
+              chainstoreApiConfigured: false,
+              r1fsApiConfigured: false,
+              featureCatalog: [],
+              chainstorePeers: [],
+              cstoreStatus: { mode: 'mock' },
+              r1fsStatus: { mode: 'mock' },
+              cstoreError: null,
+              r1fsError: null
+            })
+          } as Response);
+        }
 
         if (url.endsWith('/api/auth/login')) {
           return Promise.resolve({
