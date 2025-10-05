@@ -40,39 +40,39 @@ describe('JobForm', () => {
         if (url.endsWith('/api/config')) {
           return Promise.resolve({
             ok: true,
-          status: 200,
-          json: async () => ({
-            hostId: 'en-01',
-            mockMode: true,
-            environment: 'development',
-            swaggerUrl: null,
-            redmeshApiConfigured: false,
-            chainstoreApiConfigured: false,
-            r1fsApiConfigured: false,
-            featureCatalog: []
-          })
-        } as Response);
-      }
+            status: 200,
+            json: async () => ({
+              hostId: 'en-01',
+              mockMode: true,
+              environment: 'development',
+              swaggerUrl: null,
+              redmeshApiConfigured: false,
+              chainstoreApiConfigured: false,
+              r1fsApiConfigured: false,
+              featureCatalog: []
+            })
+          } as Response);
+        }
 
-      if (url.endsWith('/api/jobs') && init?.method === 'POST') {
-        const body = JSON.parse(init.body as string);
-        expect(body.name).toBe('Diagnostic run');
-        expect(body.target).toBe('192.168.10.5');
-        expect(body.portRange).toEqual({ start: 1, end: 2048 });
-        expect(body.features).toContain('service_info_common');
-        return Promise.resolve({
-          ok: true,
-          status: 201,
-          json: async () => ({
-            job: {
-              id: 'job-1',
-              displayName: body.name,
-              summary: body.summary,
-              status: 'queued',
-              createdAt: new Date().toISOString()
-            }
-          })
-        } as Response);
+        if (url.endsWith('/api/jobs') && init?.method === 'POST') {
+          const body = JSON.parse(init.body as string);
+          expect(body.name).toBe('Diagnostic run');
+          expect(body.target).toBe('192.168.10.5');
+          expect(body.portRange).toEqual({ start: 1, end: 2048 });
+          expect(body.features).toContain('service_info_common');
+          return Promise.resolve({
+            ok: true,
+            status: 201,
+            json: async () => ({
+              job: {
+                id: 'job-1',
+                displayName: body.name,
+                summary: body.summary,
+                status: 'queued',
+                createdAt: new Date().toISOString()
+              }
+            })
+          } as Response);
         }
 
         throw new Error(`Unhandled fetch: ${url}`);
@@ -96,7 +96,11 @@ describe('JobForm', () => {
     await user.click(screen.getByRole('button', { name: /Create job/i }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    await waitFor(() => expect(refreshMock).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(refreshMock).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'job-1', displayName: 'Diagnostic run' })
+      )
+    );
     await waitFor(() => expect(screen.getByText(/Job "Diagnostic run" created/)).toBeInTheDocument());
   });
 });

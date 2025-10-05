@@ -8,9 +8,10 @@ import Card from '@/components/ui/Card';
 import { useAuth } from '@/components/auth/AuthContext';
 import { useAppConfig } from '@/components/layout/AppConfigContext';
 import { REDMESH_FEATURE_CATALOG, getDefaultFeatureIds } from '@/lib/domain/features';
+import type { Job } from '@/lib/api/types';
 
 interface JobFormProps {
-  onCreated?: () => Promise<void> | void;
+  onCreated?: (job: Job) => Promise<void> | void;
 }
 
 const priorities = [
@@ -77,7 +78,12 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
         throw new Error(payload?.message ?? 'Unable to create job.');
       }
 
-      setSuccessMessage(`Job "${payload.job?.displayName ?? payload.job?.name ?? name}" created.`);
+      const createdJob = (payload as { job?: Job }).job;
+      if (!createdJob) {
+        throw new Error('Job response missing payload.');
+      }
+
+      setSuccessMessage(`Job "${createdJob.displayName ?? createdJob.id}" created.`);
       setName('');
       setSummary('');
       setTarget('');
@@ -91,7 +97,7 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
       setPriority('medium');
 
       if (onCreated) {
-        await onCreated();
+        await onCreated(createdJob);
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unable to create job.';

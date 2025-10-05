@@ -6,7 +6,7 @@ A Next.js App Router experience for operating the Ratio1 RedMesh framework on an
 - **Credentialed sign-in** – validates users against the Ratio1 CStore API using the deployment token supplied to the Worker App Runner.
 - **Live job observability** – consolidated dashboard with status cards, ongoing/backlog lists, job timelines, and aggregate findings (open ports, service fingerprints, web findings).
 - **Deep dive pages** – dedicated job view (`/dashboard/jobs/:id`) exposes worker coverage, per-port telemetry, and historical events aligned with the RedMesh FastAPI schema.
-- **Guided workload creation** – advanced form captures target, port ranges, feature set, worker count, payload URI, and optional notes with defaults derived from the RedMesh feature catalog.
+- **Guided workload creation** – `/dashboard/jobs/new` hosts the advanced form that captures target, port ranges, feature set, worker count, payload URI, and optional notes with defaults derived from the RedMesh feature catalog.
 - **Advanced diagnostics** – environment summary, Swagger deep-link, and configuration badges to troubleshoot missing Worker variables at a glance.
 - **Mock runtime** – when critical environment variables are absent the app switches to seeded data and mock credentials (`admin/admin123`, `operator/operator123`) so development and tests run offline.
 
@@ -25,7 +25,7 @@ A Next.js App Router experience for operating the Ratio1 RedMesh framework on an
    - `EE_R1FS_API_URL`
    - `EE_HOST_ID`
    - `REDMESH_TOKEN`
-3. `npm run dev` and open http://localhost:3000
+3. `npm run dev` and open http://localhost:3000 (job creation lives under `/dashboard/jobs/new`)
 
 ## Scripts
 - `npm run dev` – start the development server with hot reload
