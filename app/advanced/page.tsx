@@ -112,7 +112,7 @@ export default function AdvancedPage(): JSX.Element {
             </li>
           </ul>
         </Card>
-        <Card title="Edge service status" description="Live telemetry sourced via @ratio1/edge-node-client">
+        <Card title="Edge service status" description="Live telemetry sourced via @ratio1/edge-sdk-ts">
           <dl className="space-y-3 text-sm text-slate-200">
             <div>
               <dt className="font-semibold text-slate-100">CStore</dt>

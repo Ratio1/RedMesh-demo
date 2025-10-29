@@ -1,9 +1,7 @@
-import createRatio1EdgeNodeClient, {
-  Ratio1EdgeNodeClient
-} from '@ratio1/edge-node-client';
+import createEdgeSdk, { type EdgeSdk } from '@ratio1/edge-sdk-ts';
 import { getAppConfig } from '@/lib/config/env';
 
-let cachedClient: Ratio1EdgeNodeClient | null = null;
+let cachedClient: EdgeSdk | null = null;
 let cachedSignature: string | null = null;
 
 function buildSignature(
@@ -11,10 +9,10 @@ function buildSignature(
   r1fsUrl?: string,
   peers: string[] = []
 ): string {
-  return [chainstoreUrl ?? '', r1fsUrl ?? '', peers.sort().join(',')].join('|');
+  return [chainstoreUrl ?? '', r1fsUrl ?? '', peers.sort().join('|')].join('|');
 }
 
-export function getRatioEdgeClient(): Ratio1EdgeNodeClient {
+export function getRatioEdgeClient(): EdgeSdk {
   const config = getAppConfig();
   const signature = buildSignature(
     config.chainstoreApiUrl,
@@ -27,11 +25,12 @@ export function getRatioEdgeClient(): Ratio1EdgeNodeClient {
   }
 
   if (!cachedClient || cachedSignature !== signature) {
-    cachedClient = createRatio1EdgeNodeClient({
+    cachedClient = createEdgeSdk({
       cstoreUrl: config.chainstoreApiUrl,
       r1fsUrl: config.r1fsApiUrl,
       chainstorePeers: config.chainstorePeers,
-      debug: config.environment !== 'production'
+      debug: config.environment !== 'production',
+      verbose: config.environment !== 'production'
     });
     cachedSignature = signature;
   }

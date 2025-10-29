@@ -3,13 +3,13 @@
 import { GET } from '@/app/api/config/route';
 import { resetAppConfigCache } from '@/lib/config/env';
 
-jest.mock('@ratio1/edge-node-client', () => {
+jest.mock('@ratio1/edge-sdk-ts', () => {
   const mockClient = {
     cstore: {
-      getStatus: jest.fn().mockResolvedValue({ status: 'ok' })
+      getStatusFull: jest.fn().mockResolvedValue({ status: 'ok' })
     },
     r1fs: {
-      getStatus: jest.fn().mockResolvedValue({ status: 'ok' })
+      getStatusFull: jest.fn().mockResolvedValue({ status: 'ok' })
     }
   };
 
@@ -20,7 +20,7 @@ jest.mock('@ratio1/edge-node-client', () => {
   };
 });
 
-const mockedFactory = require('@ratio1/edge-node-client').default as jest.Mock;
+const mockedFactory = require('@ratio1/edge-sdk-ts').default as jest.Mock;
 
 describe('config API route', () => {
   beforeEach(() => {

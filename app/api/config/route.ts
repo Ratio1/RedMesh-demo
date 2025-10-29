@@ -17,7 +17,7 @@ export async function GET() {
     try {
       const client = getRatioEdgeClient();
       if (config.chainstoreApiUrl) {
-        cstoreStatus = await client.cstore.getStatus({ fullResponse: true });
+        cstoreStatus = await client.cstore.getStatusFull();
       }
     } catch (error) {
       cstoreError = error instanceof Error ? error.message : 'Failed to read CStore status.';
@@ -26,7 +26,7 @@ export async function GET() {
     try {
       const client = getRatioEdgeClient();
       if (config.r1fsApiUrl) {
-        r1fsStatus = await client.r1fs.getStatus({ fullResponse: true });
+        r1fsStatus = await client.r1fs.getStatusFull();
       }
     } catch (error) {
       r1fsError = error instanceof Error ? error.message : 'Failed to read R1FS status.';

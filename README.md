@@ -8,7 +8,7 @@ A Next.js App Router experience for operating the Ratio1 RedMesh framework on an
 - **Deep dive pages** – dedicated job view (`/dashboard/jobs/:id`) exposes worker coverage, per-port telemetry, and historical events aligned with the RedMesh FastAPI schema.
 - **Guided workload creation** – `/dashboard/jobs/new` hosts the advanced form that captures target, port ranges, feature set, worker count, payload URI, and optional notes with defaults derived from the RedMesh feature catalog.
 - **Advanced diagnostics** – environment summary, Swagger deep-link, and configuration badges to troubleshoot missing Worker variables at a glance.
-- **Edge service health** – live CStore/R1FS telemetry (or mock fallbacks) via `@ratio1/edge-node-client`, mirroring the Ratio1 Drive diagnostics flow.
+- **Edge service health** – live CStore/R1FS telemetry (or mock fallbacks) via `@ratio1/edge-sdk-ts`, mirroring the Ratio1 Drive diagnostics flow.
 - **Mock runtime** – when critical environment variables are absent the app switches to seeded data and mock credentials (`admin/admin123`, `operator/operator123`) so development and tests run offline.
 
 ## Project Layout
@@ -44,4 +44,4 @@ Worker App Runner deployments must inject every `EE_*` variable plus `REDMESH_TO
 ## Related Projects
 - RedMesh API framework – https://github.com/Ratio1/edge_node/tree/develop
 - Ratio1 Drive UI reference – https://github.com/Ratio1/ratio1-drive
-- Ratio1 NodeJS package - https://github.com/Ratio1/edge-node-client
+- Ratio1 Edge SDK - https://github.com/Ratio1/edge-sdk-ts
