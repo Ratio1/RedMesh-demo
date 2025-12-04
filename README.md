@@ -1,6 +1,7 @@
 # RedMesh Demo UI
 
-A Next.js App Router experience for operating the Ratio1 RedMesh framework on an Edge Node. The UI mirrors the workflows from [`edge_node` `develop`](https://github.com/Ratio1/edge_node/tree/develop) and borrows layout and interaction patterns from [`ratio1-drive`](https://github.com/Ratio1/ratio1-drive) to offer a modern operator console.
+A Next.js App Router experience for operating the Ratio1 RedMesh framework on an Edge Node. The UI mirrors the workflows from [`edge_node` `develop`](https://github.com/Ratio1/edge_node/tree/develop/extensions/business/cybersec/red_mesh) and borrows layout and interaction patterns from [`ratio1-drive`](https://github.com/Ratio1/r1fs-demo) to offer a modern operator console.
+
 
 ## Features
 - **Credentialed sign-in** – validates users against the Ratio1 CStore API using the deployment token supplied to the Worker App Runner.
@@ -20,11 +21,11 @@ A Next.js App Router experience for operating the Ratio1 RedMesh framework on an
 ## Getting Started
 1. `npm install`
 2. Create `.env.local` (empty values keep mock mode enabled):
-   - `EE_REDMESH_API_URL`
-   - `EE_CHAINSTORE_API_URL`
-   - `EE_CHAINSTORE_PEERS`
-   - `EE_R1FS_API_URL`
-   - `EE_HOST_ID`
+   - `R1EN_REDMESH_API_URL`
+   - `R1EN_CHAINSTORE_API_URL`
+   - `R1EN_CHAINSTORE_PEERS`
+   - `R1EN_R1FS_API_URL`
+   - `R1EN_HOST_ID`
    - `REDMESH_TOKEN`
 3. `npm run dev` and open http://localhost:3000 (job creation lives under `/dashboard/jobs/new`)
 
@@ -42,6 +43,6 @@ Unit and integration tests live in `__tests__/` and default to mock mode; no liv
 Worker App Runner deployments must inject every `EE_*` variable plus `REDMESH_TOKEN`. Missing values leave the console in mock mode and display a warning badge in the header. Secrets should only be accessed through `lib/config/env.ts`; avoid touching `process.env` directly in components. The Advanced page surfaces the current Swagger endpoint so operators can validate the RedMesh FastAPI instance shipped with the Edge Node.
 
 ## Related Projects
-- RedMesh API framework – https://github.com/Ratio1/edge_node/tree/develop
-- Ratio1 Drive UI reference – https://github.com/Ratio1/ratio1-drive
+- RedMesh API framework – https://github.com/Ratio1/edge_node/tree/develop/extensions/business/cybersec/red_mesh
+- Ratio1 Drive UI reference – https://github.com/Ratio1/r1fs-demo
 - Ratio1 Edge SDK - https://github.com/Ratio1/edge-sdk-ts
