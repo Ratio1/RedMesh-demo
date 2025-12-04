@@ -4,9 +4,9 @@ export interface AppRuntimeConfig {
   chainstorePeers: string[];
   r1fsApiUrl?: string;
   hostId?: string;
-  redmeshToken?: string;
   mockMode: boolean;
   environment: 'development' | 'production' | 'test';
+  redmeshPassword?: string;
 }
 
 let cachedConfig: AppRuntimeConfig | null = null;
@@ -59,12 +59,12 @@ function resolveConfig(): AppRuntimeConfig {
   const chainstoreApiUrl = normalizeUrl(process.env.EE_CHAINSTORE_API_URL);
   const r1fsApiUrl = normalizeUrl(process.env.EE_R1FS_API_URL);
   const hostId = process.env.EE_HOST_ID?.trim();
-  const redmeshToken = process.env.REDMESH_TOKEN?.trim();
+  const redmeshPassword = process.env.REDMESH_PASSWORD?.trim();
   const chainstorePeers = parsePeerList(
     process.env.EE_CHAINSTORE_PEERS || process.env.CHAINSTORE_PEERS
   );
 
-  const criticalValues = [redmeshApiUrl, chainstoreApiUrl, hostId, redmeshToken];
+  const criticalValues = [redmeshApiUrl, chainstoreApiUrl, hostId];
   const missingCritical = criticalValues.some((value) => !value);
 
   return {
@@ -73,9 +73,9 @@ function resolveConfig(): AppRuntimeConfig {
     chainstorePeers,
     r1fsApiUrl,
     hostId,
-    redmeshToken,
     mockMode: missingCritical,
-    environment: (process.env.NODE_ENV as AppRuntimeConfig['environment']) || 'development'
+    environment: (process.env.NODE_ENV as AppRuntimeConfig['environment']) || 'development',
+    redmeshPassword
   };
 }
 

@@ -180,11 +180,12 @@ export async function fetchJobs(authToken?: string): Promise<Job[]> {
     throw new ApiError(500, 'RedMesh API endpoint is not configured.');
   }
 
-  const response = await fetch(`${config.redmeshApiUrl}/jobs`, {
-    headers: {
-      Authorization: `Bearer ${authToken ?? config.redmeshToken ?? ''}`
-    }
-  });
+  const headers: Record<string, string> = {};
+  if (authToken) {
+    headers.Authorization = `Bearer ${authToken}`;
+  }
+
+  const response = await fetch(`${config.redmeshApiUrl}/jobs`, { headers });
 
   if (!response.ok) {
     const text = await response.text();
@@ -211,12 +212,17 @@ export async function createJob(
     throw new ApiError(500, 'RedMesh API endpoint is not configured.');
   }
 
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json'
+  };
+
+  if (options.authToken) {
+    headers.Authorization = `Bearer ${options.authToken}`;
+  }
+
   const response = await fetch(`${config.redmeshApiUrl}/jobs`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${options.authToken ?? config.redmeshToken ?? ''}`
-    },
+    headers,
     body: JSON.stringify({
       name: input.name,
       summary: input.summary,

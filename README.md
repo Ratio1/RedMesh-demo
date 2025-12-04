@@ -2,9 +2,10 @@
 
 A Next.js App Router experience for operating the Ratio1 RedMesh framework on an Edge Node. The UI mirrors the workflows from [`edge_node` `develop`](https://github.com/Ratio1/edge_node/tree/develop/extensions/business/cybersec/red_mesh) and borrows layout and interaction patterns from [`ratio1-drive`](https://github.com/Ratio1/r1fs-demo) to offer a modern operator console.
 
+See `UPDATE.md` (to be renamed to `TODO.md`) for the current refactor/review plan.
 
 ## Features
-- **Credentialed sign-in** – validates users against the Ratio1 CStore API using the deployment token supplied to the Worker App Runner.
+- **Credentialed sign-in** – validates users against the Ratio1 CStore API when configured; local RedMesh API boot uses `admin/{REDMESH_PASSWORD}` and does not require a deployment token.
 - **Live job observability** – consolidated dashboard with status cards, ongoing/backlog lists, job timelines, and aggregate findings (open ports, service fingerprints, web findings).
 - **Deep dive pages** – dedicated job view (`/dashboard/jobs/:id`) exposes worker coverage, per-port telemetry, and historical events aligned with the RedMesh FastAPI schema.
 - **Guided workload creation** – `/dashboard/jobs/new` hosts the advanced form that captures target, port ranges, feature set, worker count, payload URI, and optional notes with defaults derived from the RedMesh feature catalog.
@@ -26,7 +27,7 @@ A Next.js App Router experience for operating the Ratio1 RedMesh framework on an
    - `R1EN_CHAINSTORE_PEERS`
    - `R1EN_R1FS_API_URL`
    - `R1EN_HOST_ID`
-   - `REDMESH_TOKEN`
+   - `REDMESH_PASSWORD` (used by the UI for the admin login when the local RedMesh API handles auth)
 3. `npm run dev` and open http://localhost:3000 (job creation lives under `/dashboard/jobs/new`)
 
 ## Scripts
@@ -40,7 +41,7 @@ A Next.js App Router experience for operating the Ratio1 RedMesh framework on an
 Unit and integration tests live in `__tests__/` and default to mock mode; no live services are required. Every feature (auth, job creation, job timelines, config API) should include happy-path and failure-path coverage. Extend `lib/api/mockData.ts` when adding scenarios so offline testing matches the structure of the RedMesh FastAPI responses.
 
 ## Deployment Notes
-Worker App Runner deployments must inject every `EE_*` variable plus `REDMESH_TOKEN`. Missing values leave the console in mock mode and display a warning badge in the header. Secrets should only be accessed through `lib/config/env.ts`; avoid touching `process.env` directly in components. The Advanced page surfaces the current Swagger endpoint so operators can validate the RedMesh FastAPI instance shipped with the Edge Node.
+Worker App Runner deployments must inject every `R1EN_*` variable. Missing values leave the console in mock mode and display a warning badge in the header. Secrets should only be accessed through `lib/config/env.ts`; avoid touching `process.env` directly in components. The Advanced page surfaces the current Swagger endpoint so operators can validate the RedMesh FastAPI instance shipped with the Edge Node.
 
 ## Related Projects
 - RedMesh API framework – https://github.com/Ratio1/edge_node/tree/develop/extensions/business/cybersec/red_mesh

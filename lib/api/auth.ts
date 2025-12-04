@@ -24,15 +24,31 @@ export async function authenticateUser(
     return authenticateMockUser(username, password);
   }
 
-  if (!config.chainstoreApiUrl || !config.redmeshToken) {
+  const envPassword = config.redmeshPassword?.trim();
+  if (envPassword && username === 'admin') {
+    if (password !== envPassword) {
+      throw new ApiError(401, 'Invalid credentials.');
+    }
+
+    return {
+      user: {
+        id: 'admin',
+        username: 'admin',
+        displayName: 'RedMesh Admin',
+        roles: ['admin']
+      },
+      token: 'local-admin-session'
+    };
+  }
+
+  if (!config.chainstoreApiUrl) {
     throw new ApiError(500, 'ChainStore API is not configured.');
   }
 
   const response = await fetch(`${config.chainstoreApiUrl.replace(/\/$/, '')}/auth/verify`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${config.redmeshToken}`
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify({ username, password })
   });
@@ -59,7 +75,7 @@ export async function authenticateUser(
     roles: user?.roles ?? []
   };
 
-  const token = container.token ?? container.sessionToken ?? config.redmeshToken;
+  const token = container.token ?? container.sessionToken ?? 'local-session';
 
   return {
     user: normalized,
