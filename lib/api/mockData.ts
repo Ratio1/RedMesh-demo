@@ -128,7 +128,11 @@ function buildJob(partial?: Partial<Job>): Job {
     featureSet: getDefaultFeatureIds(),
     workers,
     aggregate,
-    timeline
+    timeline,
+    distribution: 'slice',
+    duration: 'singlepass',
+    tempo: { minSeconds: 20, maxSeconds: 120 },
+    tempoSteps: partial?.tempoSteps ?? { min: 4, max: 8 }
   };
 
   return {
@@ -166,7 +170,11 @@ const INITIAL_JOBS: Job[] = [
     timeline: buildTimeline([
       { label: 'Job created', at: new Date(Date.now() - 1000 * 60 * 25) },
       { label: 'Dispatch issued to workers', at: new Date(Date.now() - 1000 * 60 * 20) }
-    ])
+    ]),
+    distribution: 'mirror',
+    duration: 'continuous',
+    tempo: { minSeconds: 60, maxSeconds: 240 },
+    tempoSteps: { min: 6, max: 12 }
   }),
   buildJob({
     id: randomUUID(),
@@ -184,7 +192,11 @@ const INITIAL_JOBS: Job[] = [
     featureSet: ['service_info_common'],
     timeline: buildTimeline([
       { label: 'Job created', at: new Date(Date.now() - 1000 * 60 * 5) }
-    ])
+    ]),
+    duration: 'singlepass',
+    distribution: 'slice',
+    tempo: undefined,
+    tempoSteps: undefined
   }),
   buildJob({
     id: randomUUID(),
@@ -314,7 +326,11 @@ export function createMockJob(input: CreateJobInput, owner?: string): Job {
     workers: [],
     aggregate: undefined,
     timeline: buildTimeline([{ label: 'Job created', at: now }]),
-    lastError: undefined
+    lastError: undefined,
+    distribution: input.distribution ?? 'slice',
+    duration: input.duration ?? 'singlepass',
+    tempo: input.tempo,
+    tempoSteps: input.tempoSteps
   };
 
   mutableJobs = [job, ...mutableJobs];

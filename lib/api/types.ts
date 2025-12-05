@@ -2,6 +2,20 @@ export type JobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancell
 
 export type JobPriority = 'low' | 'medium' | 'high' | 'critical';
 
+export type JobDistribution = 'slice' | 'mirror';
+
+export type JobDuration = 'singlepass' | 'continuous';
+
+export interface JobTempo {
+  minSeconds: number;
+  maxSeconds: number;
+}
+
+export interface JobTempoSteps {
+  min: number;
+  max: number;
+}
+
 export interface JobWorkerStatus {
   id: string;
   startPort: number;
@@ -49,6 +63,10 @@ export interface Job {
   aggregate?: JobAggregateReport;
   timeline: JobTimelineEntry[];
   lastError?: string;
+  distribution?: JobDistribution;
+  duration?: JobDuration;
+  tempo?: JobTempo;
+  tempoSteps?: JobTempoSteps;
 }
 
 export interface CreateJobInput {
@@ -65,6 +83,10 @@ export interface CreateJobInput {
   payloadUri?: string;
   priority?: JobPriority;
   notes?: string;
+  distribution?: JobDistribution;
+  duration?: JobDuration;
+  tempo?: JobTempo;
+  tempoSteps?: JobTempoSteps;
 }
 
 export interface UserAccount {

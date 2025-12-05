@@ -59,6 +59,71 @@ export async function POST(request: Request) {
     ? body.features.filter((value: unknown) => typeof value === 'string')
     : undefined;
 
+  const duration = body.duration === 'continuous' ? 'continuous' : 'singlepass';
+  const distribution = body.distribution === 'mirror' ? 'mirror' : 'slice';
+  const tempoMinRaw =
+    body?.tempo?.minSeconds ?? body?.tempo?.min_seconds ?? body?.tempoMinSeconds ?? body?.tempo_min_seconds;
+  const tempoMaxRaw =
+    body?.tempo?.maxSeconds ?? body?.tempo?.max_seconds ?? body?.tempoMaxSeconds ?? body?.tempo_max_seconds;
+  const tempoMin = tempoMinRaw !== undefined ? Number(tempoMinRaw) : undefined;
+  const tempoMax = tempoMaxRaw !== undefined ? Number(tempoMaxRaw) : undefined;
+  const tempoProvided = tempoMin !== undefined || tempoMax !== undefined;
+  const tempoStepsSingleRawCandidate =
+    body?.tempo?.steps ?? body?.tempoSteps ?? body?.tempo_steps ?? body?.steps;
+  const tempoStepsSingleRaw =
+    tempoStepsSingleRawCandidate !== null && typeof tempoStepsSingleRawCandidate === 'object'
+      ? undefined
+      : tempoStepsSingleRawCandidate;
+  const tempoStepsMinRaw =
+    body?.tempo?.steps?.min ??
+    body?.tempo?.steps?.min_steps ??
+    body?.tempoSteps?.min ??
+    body?.tempoSteps?.min_steps ??
+    body?.tempo_steps?.min ??
+    body?.tempo_steps?.min_steps ??
+    body?.steps?.min ??
+    body?.tempo_steps_min ??
+    body?.steps_min ??
+    tempoStepsSingleRaw;
+  const tempoStepsMaxRaw =
+    body?.tempo?.steps?.max ??
+    body?.tempo?.steps?.max_steps ??
+    body?.tempoSteps?.max ??
+    body?.tempoSteps?.max_steps ??
+    body?.tempo_steps?.max ??
+    body?.tempo_steps?.max_steps ??
+    body?.steps?.max ??
+    body?.tempo_steps_max ??
+    body?.steps_max ??
+    tempoStepsSingleRaw;
+  const tempoStepsMin = tempoStepsMinRaw !== undefined ? Number(tempoStepsMinRaw) : undefined;
+  const tempoStepsMax = tempoStepsMaxRaw !== undefined ? Number(tempoStepsMaxRaw) : undefined;
+  const tempoStepsProvided = tempoStepsMin !== undefined || tempoStepsMax !== undefined;
+  const tempoStepsInvalid =
+    tempoStepsProvided &&
+    (!Number.isInteger(tempoStepsMin) ||
+      !Number.isInteger(tempoStepsMax) ||
+      (tempoStepsMin ?? 0) <= 0 ||
+      (tempoStepsMax ?? 0) < (tempoStepsMin ?? 0));
+
+  if (
+    (duration === 'continuous' && (!tempoMin || !tempoMax)) ||
+    (tempoProvided && (!tempoMin || !tempoMax || tempoMin <= 0 || tempoMax < tempoMin)) ||
+    tempoStepsInvalid
+  ) {
+    return NextResponse.json(
+      {
+        message: tempoStepsInvalid
+          ? 'Tempo steps are invalid. Provide min and max whole numbers (min > 0, max >= min).'
+          : 'Tempo range is invalid. Provide min and max seconds (min > 0, max >= min).'
+      },
+      { status: 400 }
+    );
+  }
+
+  const tempo =
+    tempoMin !== undefined && tempoMax !== undefined ? { minSeconds: tempoMin, maxSeconds: tempoMax } : undefined;
+
   const payload: CreateJobInput = {
     name: body.name,
     summary: body.summary,
@@ -72,7 +137,14 @@ export async function POST(request: Request) {
     workerCount: Number(body.workerCount) || undefined,
     payloadUri: body.payloadUri,
     priority: body.priority,
-    notes: body.notes
+    notes: body.notes,
+    distribution,
+    duration,
+    tempo,
+    tempoSteps:
+      tempoStepsMin !== undefined && tempoStepsMax !== undefined
+        ? { min: tempoStepsMin, max: tempoStepsMax }
+        : undefined
   };
 
   try {

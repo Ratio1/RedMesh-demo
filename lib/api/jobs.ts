@@ -3,9 +3,13 @@ import {
   CreateJobInput,
   Job,
   JobAggregateReport,
+  JobDistribution,
+  JobDuration,
   JobPriority,
   JobStatus,
   JobTimelineEntry,
+  JobTempo,
+  JobTempoSteps,
   JobWorkerStatus
 } from './types';
 import { createMockJob, getAvailableFeatures, getMockJobs } from './mockData';
@@ -113,6 +117,78 @@ function normalizeAggregate(raw: any): JobAggregateReport | undefined {
   };
 }
 
+function normalizeDistribution(value: unknown): JobDistribution {
+  const normalized = value?.toString().toLowerCase();
+  if (['mirror', 'shared', 'duplicate', 'all'].includes(normalized)) {
+    return 'mirror';
+  }
+
+  return 'slice';
+}
+
+function normalizeDuration(value: unknown): JobDuration {
+  const normalized = value?.toString().toLowerCase();
+  if (['continuous', 'monitor', 'monitoring', 'loop'].includes(normalized)) {
+    return 'continuous';
+  }
+
+  return 'singlepass';
+}
+
+function normalizeTempo(raw: any): JobTempo | undefined {
+  if (!raw) {
+    return undefined;
+  }
+
+  if (Array.isArray(raw) && raw.length === 2) {
+    const [minCandidate, maxCandidate] = raw;
+    const minSeconds = Number(minCandidate);
+    const maxSeconds = Number(maxCandidate);
+    if (Number.isFinite(minSeconds) && Number.isFinite(maxSeconds) && maxSeconds >= minSeconds && minSeconds > 0) {
+      return { minSeconds, maxSeconds };
+    }
+  }
+
+  const minSeconds = Number(
+    raw.min_seconds ?? raw.min ?? raw.minSeconds ?? raw.lower ?? raw.from ?? raw.start
+  );
+  const maxSeconds = Number(
+    raw.max_seconds ?? raw.max ?? raw.maxSeconds ?? raw.upper ?? raw.to ?? raw.end
+  );
+
+  if (Number.isFinite(minSeconds) && Number.isFinite(maxSeconds) && minSeconds > 0 && maxSeconds >= minSeconds) {
+    return { minSeconds, maxSeconds };
+  }
+
+  return undefined;
+}
+
+function normalizeTempoSteps(raw: any): JobTempoSteps | undefined {
+  if (raw === undefined || raw === null) {
+    return undefined;
+  }
+
+  const coerceNumber = (value: any) => Number(value);
+  const directNumber = coerceNumber(raw);
+
+  if (Number.isInteger(directNumber) && directNumber > 0) {
+    return { min: directNumber, max: directNumber };
+  }
+
+  const min = coerceNumber(
+    raw.min_steps ?? raw.min ?? raw.minSteps ?? raw.lower ?? raw.from ?? raw.start ?? raw.min_count ?? raw.minCount
+  );
+  const max = coerceNumber(
+    raw.max_steps ?? raw.max ?? raw.maxSteps ?? raw.upper ?? raw.to ?? raw.end ?? raw.max_count ?? raw.maxCount
+  );
+
+  if (Number.isInteger(min) && Number.isInteger(max) && min > 0 && max >= min) {
+    return { min, max };
+  }
+
+  return undefined;
+}
+
 function normalizeJob(raw: any): Job {
   ensure(raw, 500, 'Job payload missing.');
   const id = raw.job_id ?? raw.jobId ?? raw.id ?? raw.uuid;
@@ -131,6 +207,23 @@ function normalizeJob(raw: any): Job {
 
   const aggregate = normalizeAggregate(raw.aggregate ?? raw.result ?? raw.report);
   const timeline = extractTimeline(raw);
+  const tempoPayload =
+    raw.tempo ??
+    raw.test_tempo ??
+    (raw.tempo_min_seconds || raw.tempo_max_seconds
+      ? { min_seconds: raw.tempo_min_seconds, max_seconds: raw.tempo_max_seconds }
+      : undefined);
+  const tempoStepsPayload =
+    raw.tempo?.steps ??
+    raw.tempo_steps ??
+    raw.steps ??
+    raw.iterations ??
+    raw.repetitions ??
+    raw.tempoIterations ??
+    (raw.tempo_steps_min !== undefined || raw.tempo_steps_max !== undefined
+      ? { min: raw.tempo_steps_min, max: raw.tempo_steps_max }
+      : undefined);
+  const tempoSteps = normalizeTempoSteps(tempoStepsPayload);
 
   return {
     id,
@@ -152,7 +245,11 @@ function normalizeJob(raw: any): Job {
     workers,
     aggregate,
     timeline,
-    lastError: raw.error ?? raw.last_error ?? undefined
+    lastError: raw.error ?? raw.last_error ?? undefined,
+    distribution: normalizeDistribution(raw.distribution ?? raw.worker_distribution ?? raw.range_distribution),
+    duration: normalizeDuration(raw.duration ?? raw.run_mode ?? raw.mode),
+    tempo: normalizeTempo(tempoPayload),
+    tempoSteps
   } as Job;
 }
 
@@ -233,6 +330,15 @@ export async function createJob(
       worker_count: input.workerCount,
       payload_uri: input.payloadUri,
       priority: input.priority,
+      distribution: input.distribution ?? 'slice',
+      duration: input.duration ?? 'singlepass',
+      tempo: input.tempo
+        ? { min_seconds: input.tempo.minSeconds, max_seconds: input.tempo.maxSeconds }
+        : undefined,
+      tempo_steps: input.tempoSteps ? { min: input.tempoSteps.min, max: input.tempoSteps.max } : undefined,
+      ...(input.tempoSteps
+        ? { tempo_steps_min: input.tempoSteps.min, tempo_steps_max: input.tempoSteps.max }
+        : {}),
       host_id: config.hostId,
       source: 'redmesh-demo-ui'
     })

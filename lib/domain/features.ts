@@ -39,5 +39,5 @@ export const REDMESH_FEATURE_CATALOG: RedMeshFeature[] = [
 ];
 
 export function getDefaultFeatureIds(): string[] {
-  return REDMESH_FEATURE_CATALOG.filter((feature) => feature.category !== 'diagnostic').map((feature) => feature.id);
+  return REDMESH_FEATURE_CATALOG.map((feature) => feature.id);
 }

@@ -65,6 +65,10 @@ describe('JobForm', () => {
           expect(body.target).toBe('192.168.10.5');
           expect(body.portRange).toEqual({ start: 1, end: 2048 });
           expect(body.features).toContain('service_info_common');
+          expect(body.distribution).toBe('mirror');
+          expect(body.duration).toBe('continuous');
+          expect(body.tempo).toEqual({ minSeconds: 45, maxSeconds: 90 });
+          expect(body.tempoSteps).toEqual({ min: 3, max: 5 });
           return Promise.resolve({
             ok: true,
             status: 201,
@@ -89,7 +93,8 @@ describe('JobForm', () => {
       </Providers>
     );
 
-    await user.type(screen.getByLabelText(/Job name/i), 'Diagnostic run');
+    const nameInput = await screen.findByLabelText(/Task name/i);
+    await user.type(nameInput, 'Diagnostic run');
     await user.type(screen.getByLabelText(/Summary/i), 'Check mesh health');
     await user.type(screen.getByLabelText(/Target host/i), '192.168.10.5');
     await user.clear(screen.getByLabelText(/Start port/i));
@@ -97,8 +102,16 @@ describe('JobForm', () => {
     await user.clear(screen.getByLabelText(/End port/i));
     await user.type(screen.getByLabelText(/End port/i), '2048');
     await user.type(screen.getByLabelText(/Exclude ports/i), '22');
+    await user.click(screen.getByRole('button', { name: /Mirror port range/i }));
+    await user.click(screen.getByRole('button', { name: /Continuous monitoring/i }));
+    await user.clear(screen.getByLabelText(/Tempo between tests/i));
+    await user.type(screen.getByLabelText(/Tempo between tests/i), '45');
+    await user.clear(screen.getByPlaceholderText('300'));
+    await user.type(screen.getByPlaceholderText('300'), '90');
+    await user.type(screen.getByLabelText(/Min steps/i), '3');
+    await user.type(screen.getByLabelText(/Max steps/i), '5');
     await user.click(screen.getByRole('button', { name: /medium/i }));
-    await user.click(screen.getByRole('button', { name: /Create job/i }));
+    await user.click(screen.getByRole('button', { name: /Create task/i }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     await waitFor(() =>
@@ -106,6 +119,6 @@ describe('JobForm', () => {
         expect.objectContaining({ id: 'job-1', displayName: 'Diagnostic run' })
       )
     );
-    await waitFor(() => expect(screen.getByText(/Job "Diagnostic run" created/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/Task "Diagnostic run" created/)).toBeInTheDocument());
   });
 });
