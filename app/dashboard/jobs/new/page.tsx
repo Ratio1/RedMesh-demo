@@ -30,28 +30,30 @@ export default function NewJobPage(): JSX.Element {
   return (
     <AppShell>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Job creation</p>
-            <h1 className="mt-2 text-3xl font-semibold text-slate-50">Configure a new RedMesh job</h1>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="sm:max-w-xl">
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Task creation</p>
+            <h1 className="mt-2 text-3xl font-semibold text-slate-50">Configure a new RedMesh task</h1>
             <p className="mt-2 text-sm text-slate-300">
               Define the target scope, port strategy, and feature set. The payload matches the RedMesh FastAPI
               contract so it can be replayed directly against the edge node.
             </p>
           </div>
-          <Button asChild variant="secondary" size="sm">
-            <Link href="/dashboard">Back to dashboard</Link>
-          </Button>
+          <div className="flex sm:justify-end">
+            <Button asChild variant="secondary" size="sm">
+              <Link href="/dashboard">Back to dashboard</Link>
+            </Button>
+          </div>
         </div>
         <div className="grid gap-6 lg:grid-cols-[1.3fr_1fr]">
           <JobForm
             onCreated={(job) => {
-              router.replace(`/dashboard/jobs/${job.id}`);
+              router.replace(`/dashboard/tasks/${job.id}`);
             }}
           />
           <Card
             title="Tips"
-            description="Keep these guidelines in mind when dispatching a job."
+            description="Keep these guidelines in mind when dispatching a task."
             className="h-fit"
           >
             <ul className="space-y-3 text-sm text-slate-200">

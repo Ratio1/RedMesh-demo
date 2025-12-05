@@ -5,7 +5,8 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: '2mb'
     }
-  }
+  },
+  transpilePackages: ['react-map-gl', 'maplibre-gl']
 };
 
 module.exports = nextConfig;

@@ -12,6 +12,7 @@ interface JobListProps {
   description?: string;
   jobs: Job[];
   emptyState: string;
+  bare?: boolean;
 }
 
 function StatusBadge({ status }: { status: Job['status'] }): JSX.Element {
@@ -56,83 +57,109 @@ function LatestEvent({ timeline }: { timeline: Job['timeline'] }): JSX.Element |
   );
 }
 
-export default function JobList({ title, description, jobs, emptyState }: JobListProps): JSX.Element {
+function computeCompletion(job: Job): number {
+  if (job.status === 'completed') {
+    return 100;
+  }
+  if (job.status === 'queued') {
+    return 0;
+  }
+  if (job.status === 'failed' || job.status === 'cancelled') {
+    return Math.min(
+      100,
+      Math.max(
+        0,
+        job.workers.length
+          ? job.workers.reduce((acc, worker) => acc + (worker.progress ?? 0), 0) / job.workers.length
+          : 25
+      )
+    );
+  }
+  if (job.workers.length) {
+    const avg = job.workers.reduce((acc, worker) => acc + (worker.progress ?? 0), 0) / job.workers.length;
+    return Math.min(100, Math.max(0, Math.round(avg)));
+  }
+  return 15;
+}
+
+export default function JobList({ title, description, jobs, emptyState, bare = false }: JobListProps): JSX.Element {
+  const content =
+    jobs.length === 0 ? (
+      <div className="flex items-center justify-between rounded-xl border border-dashed border-white/15 bg-slate-900/50 px-4 py-6 text-sm text-slate-200">
+        <p>{emptyState}</p>
+      </div>
+    ) : (
+      <div className="space-y-4">
+        {jobs.map((job) => (
+          <article
+            key={job.id}
+            className="rounded-2xl border border-white/10 bg-slate-900/70 p-5 shadow-inner shadow-slate-950/40 transition hover:border-brand-primary/50"
+          >
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <h3 className="text-lg font-semibold text-slate-100">{job.displayName}</h3>
+                <StatusBadge status={job.status} />
+                <Badge tone="neutral" label={`Priority: ${job.priority}`} />
+                <Badge tone="neutral" label={`Workers: ${job.workerCount}`} />
+              </div>
+              <p className="text-sm text-slate-300">{job.summary}</p>
+              <div className="flex flex-wrap gap-4 text-xs text-slate-400">
+                <span>Target {job.target}</span>
+                <span>Initiator {job.initiator}</span>
+                {job.owner && <span>Owner {job.owner}</span>}
+                <span>Created {formatRelative(job.createdAt)}</span>
+                {job.startedAt && <span>Started {formatRelative(job.startedAt)}</span>}
+                {job.completedAt && <span>Completed {formatRelative(job.completedAt)}</span>}
+              </div>
+              <LatestEvent timeline={job.timeline} />
+              {job.aggregate && job.aggregate.openPorts.length > 0 && (
+                <div className="rounded-xl border border-brand-primary/25 bg-brand-primary/10 p-4 text-xs text-slate-100">
+                  <p className="text-sm font-semibold text-brand-primary">Aggregate findings</p>
+                  <div className="mt-2 flex flex-wrap gap-3">
+                    <span>
+                      Open ports: {job.aggregate.openPorts.join(', ')}
+                    </span>
+                    <span>
+                      Services monitored: {Object.keys(job.aggregate.serviceSummary).length}
+                    </span>
+                  </div>
+                </div>
+              )}
+              {job.lastError && (
+                <div className="rounded-xl border border-rose-500/30 bg-rose-500/15 p-3 text-xs text-rose-100">
+                  Last error: {job.lastError}
+                </div>
+              )}
+              <div className="flex flex-col gap-3 border-t border-white/10 pt-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="w-full max-w-xl">
+                  <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.12em] text-slate-400">
+                    <span>Completion</span>
+                    <span className="text-slate-200">{computeCompletion(job)}%</span>
+                  </div>
+                  <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-emerald-500 to-emerald-600 transition-[width] duration-300"
+                      style={{ width: `${computeCompletion(job)}%` }}
+                    />
+                  </div>
+                </div>
+                <Button asChild variant="secondary" size="sm" className="lg:self-end">
+                  <Link href={`/dashboard/tasks/${job.id}`}>View details</Link>
+                </Button>
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
+    );
+
+  if (bare) {
+    return content;
+  }
+
   return (
     <Card title={title} description={description}>
-      {jobs.length === 0 ? (
-        <div className="flex items-center justify-between rounded-xl border border-dashed border-white/15 bg-white/5 px-4 py-6 text-sm text-slate-300">
-          <p>{emptyState}</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {jobs.map((job) => (
-            <article
-              key={job.id}
-              className="rounded-2xl border border-white/10 bg-slate-900/60 p-5 shadow-inner shadow-slate-900/40 transition hover:border-sky-400/40"
-            >
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div className="space-y-3">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <h3 className="text-lg font-semibold text-slate-100">{job.displayName}</h3>
-                    <StatusBadge status={job.status} />
-                    <Badge tone="neutral" label={`Priority: ${job.priority}`} />
-                    <Badge tone="neutral" label={`Workers: ${job.workerCount}`} />
-                  </div>
-                  <p className="text-sm text-slate-300/90">{job.summary}</p>
-                  <div className="flex flex-wrap gap-4 text-xs text-slate-400">
-                    <span>Target {job.target}</span>
-                    <span>Initiator {job.initiator}</span>
-                    {job.owner && <span>Owner {job.owner}</span>}
-                    <span>Created {formatRelative(job.createdAt)}</span>
-                    {job.startedAt && <span>Started {formatRelative(job.startedAt)}</span>}
-                    {job.completedAt && <span>Completed {formatRelative(job.completedAt)}</span>}
-                  </div>
-                  <LatestEvent timeline={job.timeline} />
-                  {job.aggregate && job.aggregate.openPorts.length > 0 && (
-                    <div className="rounded-xl border border-sky-400/20 bg-sky-500/10 p-4 text-xs text-sky-100">
-                      <p className="text-sm font-semibold text-sky-200">Aggregate findings</p>
-                      <div className="mt-2 flex flex-wrap gap-3">
-                        <span>
-                          Open ports: {job.aggregate.openPorts.join(', ')}
-                        </span>
-                        <span>
-                          Services monitored: {Object.keys(job.aggregate.serviceSummary).length}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                  {job.lastError && (
-                    <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-100">
-                      Last error: {job.lastError}
-                    </div>
-                  )}
-                </div>
-                <div className="flex flex-col items-end gap-3">
-                  <Button asChild variant="secondary" size="sm">
-                    <Link href={`/dashboard/jobs/${job.id}`}>View details</Link>
-                  </Button>
-                  {job.workers.length > 0 && (
-                    <div className="space-y-2 rounded-xl border border-white/10 bg-white/5 p-4 text-xs text-slate-200">
-                      <p className="text-sm font-semibold text-slate-100">Worker progress</p>
-                      <ul className="space-y-2">
-                        {job.workers.slice(0, 3).map((worker) => (
-                          <li key={worker.id} className="flex items-center justify-between gap-4">
-                            <span className="font-medium text-slate-100">{worker.id}</span>
-                            <span className="text-slate-300">{worker.progress}%</span>
-                          </li>
-                        ))}
-                        {job.workers.length > 3 && (
-                          <li className="text-slate-400">+{job.workers.length - 3} more workers</li>
-                        )}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
-      )}
+      {content}
     </Card>
   );
 }

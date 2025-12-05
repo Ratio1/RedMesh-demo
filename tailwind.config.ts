@@ -9,12 +9,12 @@ const config: Config = {
       },
       colors: {
         brand: {
-          primary: '#38bdf8',
-          secondary: '#0ea5e9'
+          primary: '#d62828',
+          secondary: '#0a0a0a'
         }
       },
       boxShadow: {
-        floating: '0 40px 120px rgba(8,47,73,0.45)'
+        floating: '0 40px 120px rgba(0,0,0,0.08)'
       }
     }
   },

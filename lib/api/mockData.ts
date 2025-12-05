@@ -185,6 +185,87 @@ const INITIAL_JOBS: Job[] = [
     timeline: buildTimeline([
       { label: 'Job created', at: new Date(Date.now() - 1000 * 60 * 5) }
     ])
+  }),
+  buildJob({
+    id: randomUUID(),
+    displayName: 'Mesh Coverage - LATAM edge',
+    target: '10.42.0.0/24',
+    status: 'completed',
+    summary: 'Coverage sweep across LATAM satellite nodes.',
+    createdAt: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
+    startedAt: new Date(Date.now() - 1000 * 60 * 110).toISOString(),
+    completedAt: new Date(Date.now() - 1000 * 60 * 70).toISOString(),
+    priority: 'medium',
+    workers: [buildWorker('LAT1', 1, 2048, true)],
+    workerCount: 1
+  }),
+  buildJob({
+    id: randomUUID(),
+    displayName: 'Mesh Load Test - EU mesh',
+    target: 'eu.mesh.ratio1',
+    status: 'running',
+    summary: 'Load test across EU edge nodes to benchmark concurrency.',
+    createdAt: new Date(Date.now() - 1000 * 60 * 50).toISOString(),
+    updatedAt: new Date().toISOString(),
+    startedAt: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
+    completedAt: undefined,
+    priority: 'medium',
+    workers: [
+      buildWorker('EU1', 1, 1500, false, { progress: 55, openPorts: [443] }),
+      buildWorker('EU2', 1501, 3000, false, { progress: 48 })
+    ],
+    workerCount: 2,
+    aggregate: undefined,
+    timeline: buildTimeline([
+      { label: 'Job created', at: new Date(Date.now() - 1000 * 60 * 50) },
+      { label: 'Dispatch issued to workers', at: new Date(Date.now() - 1000 * 60 * 45) }
+    ])
+  }),
+  buildJob({
+    id: randomUUID(),
+    displayName: 'TLS Audit - Romania edge',
+    target: 'ro.mesh.ratio1',
+    status: 'failed',
+    summary: 'TLS posture audit across Romanian edge nodes.',
+    createdAt: new Date(Date.now() - 1000 * 60 * 80).toISOString(),
+    startedAt: new Date(Date.now() - 1000 * 60 * 70).toISOString(),
+    completedAt: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
+    priority: 'high',
+    workers: [
+      buildWorker('RO1', 1, 1024, true, { openPorts: [443] }),
+      buildWorker('RO2', 1025, 2048, false, { progress: 20, openPorts: [] })
+    ],
+    workerCount: 2,
+    aggregate: undefined,
+    lastError: 'Worker timeout on RO2',
+    timeline: buildTimeline([
+      { label: 'Job created', at: new Date(Date.now() - 1000 * 60 * 80) },
+      { label: 'Dispatch issued to workers', at: new Date(Date.now() - 1000 * 60 * 70) },
+      { label: 'Job failed', at: new Date(Date.now() - 1000 * 60 * 60) }
+    ])
+  }),
+  buildJob({
+    id: randomUUID(),
+    displayName: 'Incident Response Drill - APAC',
+    target: 'apac.mesh.ratio1',
+    status: 'failed',
+    summary: 'APAC incident response simulation with controlled failure.',
+    createdAt: new Date(Date.now() - 1000 * 60 * 140).toISOString(),
+    startedAt: new Date(Date.now() - 1000 * 60 * 135).toISOString(),
+    completedAt: new Date(Date.now() - 1000 * 60 * 130).toISOString(),
+    priority: 'critical',
+    workers: [
+      buildWorker('AP1', 1, 1024, true, { openPorts: [22, 443] }),
+      buildWorker('AP2', 1025, 2048, true, { openPorts: [] })
+    ],
+    workerCount: 2,
+    aggregate: undefined,
+    lastError: 'Response window exceeded for forensic copy',
+    timeline: buildTimeline([
+      { label: 'Job created', at: new Date(Date.now() - 1000 * 60 * 140) },
+      { label: 'Dispatch issued to workers', at: new Date(Date.now() - 1000 * 60 * 135) },
+      { label: 'Job failed', at: new Date(Date.now() - 1000 * 60 * 130) }
+    ])
   })
 ];
 

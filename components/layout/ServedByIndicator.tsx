@@ -14,14 +14,8 @@ export default function ServedByIndicator({ className }: ServedByIndicatorProps)
   const label = hostId ? `Served by ${hostId}` : loading ? 'Detecting R1EN...' : 'R1EN unavailable';
 
   return (
-    <div
-      className={clsx(
-        'pointer-events-none fixed bottom-4 right-4 rounded-full bg-slate-950/80 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-300 shadow-lg shadow-black/40 ring-1 ring-white/10 backdrop-blur',
-        className
-      )}
-      aria-live="polite"
-    >
-      {label}
+    <div className={clsx('flex items-center gap-2 text-xs text-slate-400', className)} aria-live="polite">
+      <span className="whitespace-nowrap text-slate-200">{label}</span>
     </div>
   );
 }

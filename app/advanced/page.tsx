@@ -46,7 +46,7 @@ export default function AdvancedPage(): JSX.Element {
               <Link
                 href={config.swaggerUrl}
                 target="_blank"
-                className="inline-flex h-10 items-center justify-center rounded-full bg-sky-500/90 px-5 text-sm font-medium text-slate-900 shadow-lg shadow-sky-500/30 transition hover:bg-sky-400"
+                className="inline-flex h-10 items-center justify-center rounded-full bg-brand-primary px-5 text-sm font-medium text-white shadow-lg shadow-brand-primary/25 transition hover:bg-[#b30025]"
               >
                 Open docs
               </Link>
@@ -57,13 +57,13 @@ export default function AdvancedPage(): JSX.Element {
             )
           }
         >
-          <p className="text-sm leading-relaxed text-slate-300">
+          <p className="text-sm leading-relaxed text-slate-200">
             The Swagger UI is published by the RedMesh API on the edge node. Access requires network
             proximity or tunnelling provided by the Ratio1 Worker App Runner. Environment variable
-            <code className="mx-1 rounded bg-white/10 px-2 py-0.5 text-xs">EE_REDMESH_API_URL</code> must be set.
+            <code className="mx-1 rounded bg-white/10 px-2 py-0.5 text-xs text-slate-100">EE_REDMESH_API_URL</code> must be set.
           </p>
           {!config?.swaggerUrl && (
-            <p className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+            <p className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/15 px-4 py-3 text-sm text-amber-100">
               Swagger endpoint is not configured. Confirm the RedMesh API URL is accessible and the worker
               exported <code>EE_REDMESH_API_URL</code>.
             </p>
@@ -138,13 +138,13 @@ export default function AdvancedPage(): JSX.Element {
         >
           <ol className="list-decimal space-y-3 pl-5 text-sm text-slate-200">
             <li>
-              Confirm <code className="mx-1 rounded bg-white/10 px-2 py-0.5 text-xs">REDMESH_TOKEN</code> is
+              Confirm <code className="mx-1 rounded bg-white/10 px-2 py-0.5 text-xs text-slate-100">REDMESH_TOKEN</code> is
               provisioned to the Worker App Runner.
             </li>
             <li>Fetch <code>/api/auth/login</code> with mock credentials to validate fallback behaviour.</li>
             <li>
               When connected to real infrastructure, CStore should respond to
-              <code className="mx-1 rounded bg-white/10 px-2 py-0.5 text-xs">POST /auth/verify</code> requests.
+              <code className="mx-1 rounded bg-white/10 px-2 py-0.5 text-xs text-slate-100">POST /auth/verify</code> requests.
             </li>
           </ol>
         </Card>

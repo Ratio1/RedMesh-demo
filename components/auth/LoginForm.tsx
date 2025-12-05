@@ -56,12 +56,12 @@ export default function LoginForm(): JSX.Element {
         />
       </div>
       {(localError || error) && (
-        <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+        <div className="rounded-lg border border-[#e23d4b]/40 bg-[#e23d4b]/20 px-4 py-3 text-sm text-slate-100">
           {localError || error}
         </div>
       )}
       {config?.mockMode && (
-        <div className="rounded-lg border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-xs text-slate-200">
+        <div className="rounded-lg border border-brand-primary/25 bg-brand-primary/15 px-4 py-3 text-xs text-slate-100">
           Mock mode is active. Try <code>admin / admin123</code> or <code>operator / operator123</code>.
         </div>
       )}

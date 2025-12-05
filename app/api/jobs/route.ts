@@ -17,8 +17,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: error.message }, { status: error.status });
     }
 
-    console.error('Unexpected jobs fetch error', error);
-    return NextResponse.json({ message: 'Unable to load jobs.' }, { status: 500 });
+    console.error('Unexpected tasks fetch error', error);
+    return NextResponse.json({ message: 'Unable to load tasks.' }, { status: 500 });
   }
 }
 
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
 
   if (!body || typeof body.name !== 'string' || typeof body.summary !== 'string') {
-    return NextResponse.json({ message: 'Job name and summary are required.' }, { status: 400 });
+    return NextResponse.json({ message: 'Task name and summary are required.' }, { status: 400 });
   }
 
   if (typeof body.target !== 'string' || !body.target.trim()) {
@@ -83,7 +83,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: error.message }, { status: error.status });
     }
 
-    console.error('Unexpected job creation error', error);
-    return NextResponse.json({ message: 'Unable to create job.' }, { status: 500 });
+    console.error('Unexpected task creation error', error);
+    return NextResponse.json({ message: 'Unable to create task.' }, { status: 500 });
   }
 }

@@ -75,15 +75,15 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
 
       const payload = await response.json().catch(() => null);
       if (!response.ok || !payload) {
-        throw new Error(payload?.message ?? 'Unable to create job.');
+        throw new Error(payload?.message ?? 'Unable to create task.');
       }
 
       const createdJob = (payload as { job?: Job }).job;
       if (!createdJob) {
-        throw new Error('Job response missing payload.');
+        throw new Error('Task response missing payload.');
       }
 
-      setSuccessMessage(`Job "${createdJob.displayName ?? createdJob.id}" created.`);
+      setSuccessMessage(`Task "${createdJob.displayName ?? createdJob.id}" created.`);
       setName('');
       setSummary('');
       setTarget('');
@@ -100,7 +100,7 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
         await onCreated(createdJob);
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unable to create job.';
+      const message = err instanceof Error ? err.message : 'Unable to create task.';
       setErrorMessage(message);
     } finally {
       setIsSubmitting(false);
@@ -109,14 +109,14 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
 
   return (
     <Card
-      title="Create a new job"
-      description="Schedule a new RedMesh job for the current edge node."
+      title="Create a new task"
+      description="Schedule a new RedMesh task for the current edge node."
       className="h-full"
     >
       <form className="space-y-5" onSubmit={handleSubmit}>
         <div className="space-y-2">
           <label htmlFor="job-name" className="block text-sm font-medium text-slate-200">
-            Job name
+            Task name
           </label>
           <Input
             id="job-name"
@@ -132,7 +132,7 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
           </label>
           <TextArea
             id="job-summary"
-            placeholder="Short description of the job scope"
+            placeholder="Short description of the task scope"
             value={summary}
             onChange={(event) => setSummary(event.target.value)}
             required
@@ -210,15 +210,15 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
                   }
                   className={`flex items-center justify-between rounded-xl border px-4 py-2 text-sm transition ${
                     active
-                      ? 'border-sky-400/60 bg-sky-500/15 text-sky-100'
-                      : 'border-white/10 bg-white/5 text-slate-200 hover:border-sky-400/40'
+                      ? 'border-brand-primary/60 bg-brand-primary/15 text-slate-100'
+                      : 'border-white/10 bg-slate-900/40 text-slate-200 hover:border-brand-primary/40'
                   }`}
                 >
                   <div className="flex flex-col items-start">
                     <span>{feature.label}</span>
-                    <span className="text-[0.7rem] text-slate-300/80">{feature.description}</span>
+                    <span className="text-[0.7rem] text-slate-400">{feature.description}</span>
                   </div>
-                  {active && <span className="text-xs uppercase text-sky-200">Enabled</span>}
+                  {active && <span className="text-xs uppercase text-brand-primary">Enabled</span>}
                 </button>
               );
             })}
@@ -270,8 +270,8 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
               <button
                 key={option.value}
                 type="button"
-                className={`flex-1 rounded-xl border border-white/10 px-4 py-2 text-sm transition hover:border-sky-400/40 ${
-                  priority === option.value ? 'bg-sky-500/20 text-sky-100' : 'bg-white/5 text-slate-200'
+                className={`flex-1 rounded-xl border border-white/10 px-4 py-2 text-sm transition hover:border-brand-primary/50 hover:bg-slate-800 ${
+                  priority === option.value ? 'bg-brand-primary/15 text-slate-100' : 'bg-slate-900/50 text-slate-200'
                 }`}
                 onClick={() => setPriority(option.value)}
               >
@@ -281,12 +281,12 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
           </div>
         </div>
         {successMessage && (
-          <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+          <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-4 py-3 text-sm text-emerald-100">
             {successMessage}
           </div>
         )}
         {errorMessage && (
-          <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+          <div className="rounded-lg border border-rose-500/30 bg-rose-500/15 px-4 py-3 text-sm text-rose-100">
             {errorMessage}
           </div>
         )}
@@ -300,7 +300,7 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
             (Number(portEnd) || 0) < (Number(portStart) || 0)
           }
         >
-          {isSubmitting ? 'Creating...' : 'Create job'}
+          {isSubmitting ? 'Creating...' : 'Create task'}
         </Button>
       </form>
     </Card>
