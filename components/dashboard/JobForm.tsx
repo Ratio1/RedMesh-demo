@@ -501,6 +501,9 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
             Tempo is the pause duration between step sessions: set a min/max break and each pause is re-randomized inside
             that window (e.g. 30-300 seconds). Steps define how many tests run in a session before that pause.
           </p>
+          <p className="text-[0.75rem] italic text-brand-primary/80">
+            Also known as &quot;Dune sand walking&quot; in memory of Frank Herbert.
+          </p>
           <div className="grid gap-4 sm:grid-cols-2">
             <Input
               id="tempo-min"
