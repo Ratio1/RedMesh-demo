@@ -79,14 +79,29 @@ function resolveConfig(): AppRuntimeConfig {
   const chainstorePeers = parsePeerList(
     process.env.EE_CHAINSTORE_PEERS || process.env.CHAINSTORE_PEERS
   );
-  const forceMockTasks =
-    (process.env.EE_FORCE_MOCK_TASKS ?? process.env.FORCE_MOCK_TASKS ?? 'true')
-      .toString()
-      .toLowerCase() === 'true';
-  const forceMockAuth =
-    (process.env.EE_FORCE_MOCK_AUTH ?? process.env.FORCE_MOCK_AUTH ?? 'true')
-      .toString()
-      .toLowerCase() === 'true';
+  const coerceBoolean = (raw: string | undefined | null, defaultValue: boolean) => {
+    if (raw === undefined || raw === null) {
+      return defaultValue;
+    }
+    const normalized = raw.toString().trim().toLowerCase();
+
+    // Accept numeric toggles like "0" or "1".
+    const numeric = Number.parseInt(normalized, 10);
+    if (!Number.isNaN(numeric)) {
+      return numeric !== 0;
+    }
+
+    return ['1', 'true', 'yes', 'on'].includes(normalized);
+  };
+
+  const forceMockTasks = coerceBoolean(
+    process.env.EE_FORCE_MOCK_TASKS ?? process.env.FORCE_MOCK_TASKS,
+    true
+  );
+  const forceMockAuth = coerceBoolean(
+    process.env.EE_FORCE_MOCK_AUTH ?? process.env.FORCE_MOCK_AUTH,
+    true
+  );
 
   const criticalValues = [redmeshApiUrl, chainstoreApiUrl, hostId];
   const missingCritical = criticalValues.some((value) => !value);
