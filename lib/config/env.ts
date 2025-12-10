@@ -70,7 +70,8 @@ function resolveConfig(): AppRuntimeConfig {
     process.env.EE_ORACLES_API_URL ??
       process.env.ORACLES_API_URL ??
       process.env.NEXT_PUBLIC_ORACLES_URL ??
-      process.env.R1EN_ORACLES_API_URL
+      process.env.R1EN_ORACLES_API_URL ??
+      "https://devnet-oracle.ratio1.ai"
   );
   const chainstoreApiUrl = normalizeUrl(process.env.EE_CHAINSTORE_API_URL);
   const r1fsApiUrl = normalizeUrl(process.env.EE_R1FS_API_URL);
