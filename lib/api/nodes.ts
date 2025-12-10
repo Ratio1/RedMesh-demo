@@ -118,6 +118,24 @@ async function fetchActiveNodeStats(oraclesApiUrl: string): Promise<NodeCountryS
   return computeStatsFromNodes(nodes as Record<string, any>);
 }
 
+async function fetchNodeLastEpoch(oraclesApiUrl: string, ethAddr: string): Promise<any | null> {
+  const response = await fetch(`${oraclesApiUrl}/node_last_epoch?eth_node_addr=${ethAddr}`, {
+    cache: 'no-store'
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const payload = await response.json().catch(() => null);
+  const result = payload?.result;
+  if (result && !('error' in result)) {
+    return result;
+  }
+
+  return null;
+}
+
 function resolveCountry(tags?: unknown): string | null {
   const list = Array.isArray(tags) ? (tags as unknown[]) : [];
   const countryTag = list.find((tag) => typeof tag === 'string' && tag.startsWith('CT:')) as string | undefined;
@@ -185,7 +203,7 @@ export async function getNodeGeoData(): Promise<NodeGeoResponse> {
   const config = getAppConfig();
 
   try {
-    // Build node map from oracles payload when available to enrich peer coordinates.
+    // Build node map from oracles payload when available to enrich host coordinates.
     let nodeMap: Record<string, any> | undefined;
     let stats: NodeCountryStat[] = MOCK_STATS;
 
@@ -203,8 +221,17 @@ export async function getNodeGeoData(): Promise<NodeGeoResponse> {
       }
     }
 
-    const peers = buildPeerList(config.chainstorePeers, config.hostId, config.hostAddr, nodeMap);
-    const geoJson = buildPeerGeo(peers.length ? peers : peers);
+    let hostRecord: any | null = null;
+    if (config.oraclesApiUrl && config.hostEthAddr) {
+      hostRecord = await fetchNodeLastEpoch(config.oraclesApiUrl, config.hostEthAddr);
+    }
+
+    const peers = buildPeerList(config.chainstorePeers, config.hostId, config.hostAddr, {
+      ...(nodeMap ?? {}),
+      ...(hostRecord ? { [config.hostAddr ?? config.hostId ?? 'host']: hostRecord } : {})
+    });
+
+    const geoJson = buildPeerGeo(peers);
     return { stats, geoJson, source: config.oraclesApiUrl ? 'live' : 'mock', peers };
   } catch (error) {
     // Fall back to mock data when live retrieval fails so the UI still renders.
