@@ -20,7 +20,20 @@ export async function authenticateUser(
 ): Promise<AuthSuccess> {
   const config = getAppConfig();
 
-  if (config.mockMode) {
+  if (config.mockMode || config.forceMockAuth) {
+    const envAdminUser = config.adminUsername || 'admin';
+    const envAdminPassword = config.adminPassword || 'admin123';
+    if (username === envAdminUser && password === envAdminPassword) {
+      return {
+        user: {
+          id: envAdminUser,
+          username: envAdminUser,
+          displayName: 'RedMesh Admin',
+          roles: ['admin']
+        },
+        token: 'mock-admin-session'
+      };
+    }
     return authenticateMockUser(username, password);
   }
 

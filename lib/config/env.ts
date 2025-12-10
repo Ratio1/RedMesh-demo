@@ -8,6 +8,10 @@ export interface AppRuntimeConfig {
   mockMode: boolean;
   environment: 'development' | 'production' | 'test';
   redmeshPassword?: string;
+  forceMockTasks: boolean;
+  forceMockAuth: boolean;
+  adminUsername: string;
+  adminPassword: string;
 }
 
 let cachedConfig: AppRuntimeConfig | null = null;
@@ -70,9 +74,19 @@ function resolveConfig(): AppRuntimeConfig {
   const r1fsApiUrl = normalizeUrl(process.env.EE_R1FS_API_URL);
   const hostId = process.env.EE_HOST_ID?.trim();
   const redmeshPassword = process.env.REDMESH_PASSWORD?.trim();
+  const adminUsername = (process.env.ADMIN_USERNAME ?? 'admin').trim();
+  const adminPassword = (process.env.ADMIN_PASSWORD ?? 'admin123').trim();
   const chainstorePeers = parsePeerList(
     process.env.EE_CHAINSTORE_PEERS || process.env.CHAINSTORE_PEERS
   );
+  const forceMockTasks =
+    (process.env.EE_FORCE_MOCK_TASKS ?? process.env.FORCE_MOCK_TASKS ?? 'true')
+      .toString()
+      .toLowerCase() === 'true';
+  const forceMockAuth =
+    (process.env.EE_FORCE_MOCK_AUTH ?? process.env.FORCE_MOCK_AUTH ?? 'true')
+      .toString()
+      .toLowerCase() === 'true';
 
   const criticalValues = [redmeshApiUrl, chainstoreApiUrl, hostId];
   const missingCritical = criticalValues.some((value) => !value);
@@ -86,7 +100,11 @@ function resolveConfig(): AppRuntimeConfig {
     hostId,
     mockMode: missingCritical,
     environment: (process.env.NODE_ENV as AppRuntimeConfig['environment']) || 'development',
-    redmeshPassword
+    redmeshPassword,
+    forceMockTasks,
+    forceMockAuth,
+    adminUsername,
+    adminPassword
   };
 }
 

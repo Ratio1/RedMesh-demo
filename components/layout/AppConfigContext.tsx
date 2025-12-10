@@ -15,6 +15,8 @@ import type { RedMeshFeature } from '@/lib/domain/features';
 export interface ClientRuntimeConfig {
   hostId: string | null;
   mockMode: boolean;
+  forceMockTasks: boolean;
+  forceMockAuth: boolean;
   environment: 'development' | 'production' | 'test';
   swaggerUrl: string | null;
   redmeshApiConfigured: boolean;

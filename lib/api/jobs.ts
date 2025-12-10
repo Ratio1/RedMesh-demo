@@ -269,7 +269,7 @@ function normalizePriority(value: unknown): JobPriority {
 export async function fetchJobs(authToken?: string): Promise<Job[]> {
   const config = getAppConfig();
 
-  if (config.mockMode) {
+  if (config.mockMode || config.forceMockTasks) {
     return getMockJobs();
   }
 
@@ -301,7 +301,7 @@ export async function createJob(
 ): Promise<Job> {
   const config = getAppConfig();
 
-  if (config.mockMode) {
+  if (config.mockMode || config.forceMockTasks) {
     return createMockJob(input, options.owner);
   }
 

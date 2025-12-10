@@ -59,7 +59,7 @@ function StatusPill({ label, ok, optional }: { label: string; ok?: boolean; opti
       <div className="flex flex-col">
         <span className="text-[11px] uppercase tracking-[0.18em] text-slate-300">{label}</span>
         <span className={ok ? 'text-emerald-300' : optional ? 'text-amber-300' : 'text-rose-300'}>
-          {ok ? 'detected' : optional ? 'optional' : 'missing'}
+          {ok ? 'Live' : optional ? 'optional' : 'missing'}
         </span>
       </div>
     </div>

@@ -36,6 +36,8 @@ export async function GET() {
   return NextResponse.json({
     hostId: config.hostId ?? null,
     mockMode: config.mockMode,
+    forceMockAuth: config.forceMockAuth,
+    forceMockTasks: config.forceMockTasks,
     environment: config.environment,
     swaggerUrl: getSwaggerUrl() ?? null,
     redmeshApiConfigured: Boolean(config.redmeshApiUrl),
