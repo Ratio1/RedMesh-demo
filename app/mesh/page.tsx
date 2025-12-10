@@ -93,14 +93,20 @@ export default function MeshPage(): JSX.Element {
     (async () => {
       try {
         const response = await fetch('/api/nodes', { cache: 'no-store' });
-        const payload = (await response.json().catch(() => null)) as NodeGeoResponse | null;
-        if (!response.ok || !payload) {
-          throw new Error(payload?.message ?? 'Unable to load mesh nodes.');
+        const payload = (await response.json().catch(() => null)) as NodeGeoResponse | { message?: string } | null;
+        const hasGeoJson = payload && typeof payload === 'object' && 'geoJson' in payload;
+        if (!response.ok || !hasGeoJson) {
+          const message =
+            payload && typeof payload === 'object' && 'message' in payload && typeof payload.message === 'string'
+              ? payload.message
+              : 'Unable to load mesh nodes.';
+          throw new Error(message);
         }
         if (cancelled) return;
-        setGeoJson(payload.geoJson);
-        setStats(payload.stats ?? []);
-        setDataSource(payload.source ?? 'live');
+        const data = payload as NodeGeoResponse;
+        setGeoJson(data.geoJson);
+        setStats(data.stats ?? []);
+        setDataSource(data.source ?? 'live');
       } catch (err) {
         if (cancelled) return;
         const message = err instanceof Error ? err.message : 'Unable to load mesh nodes.';
@@ -246,4 +252,3 @@ export default function MeshPage(): JSX.Element {
     </AppShell>
   );
 }
-
