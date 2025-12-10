@@ -113,10 +113,10 @@ export default function AdvancedPage(): JSX.Element {
           </ul>
         </Card>
         <Card title="Edge service status" description="Live telemetry sourced via @ratio1/edge-sdk-ts">
-          <dl className="space-y-3 text-sm text-slate-200">
+          <dl className="space-y-3 text-sm text-slate-200 break-words">
             <div>
               <dt className="font-semibold text-slate-100">CStore</dt>
-              <dd className="text-xs text-slate-400">
+              <dd className="text-xs text-slate-400 leading-relaxed break-words">
                 {config?.cstoreError
                   ? `Error: ${config.cstoreError}`
                   : formatStatus(config?.cstoreStatus, 'Unavailable')}
@@ -124,7 +124,7 @@ export default function AdvancedPage(): JSX.Element {
             </div>
             <div>
               <dt className="font-semibold text-slate-100">R1FS</dt>
-              <dd className="text-xs text-slate-400">
+              <dd className="text-xs text-slate-400 leading-relaxed break-words">
                 {config?.r1fsError
                   ? `Error: ${config.r1fsError}`
                   : formatStatus(config?.r1fsStatus, 'Unavailable')}

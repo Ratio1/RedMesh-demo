@@ -169,10 +169,6 @@ export default function MeshPage(): JSX.Element {
             from the Ratio1 oracles service and falls back to mock counts if the
             endpoint is unavailable.
           </p>
-          <div className="mt-1 inline-flex w-fit items-center gap-2 rounded-full border border-white/10 bg-slate-900/60 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
-            Source:{" "}
-            {dataSource === "live" ? "live oracles API" : "mock registry"}
-          </div>
         </header>
 
         <Card>

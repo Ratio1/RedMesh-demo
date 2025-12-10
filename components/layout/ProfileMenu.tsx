@@ -44,19 +44,11 @@ export default function ProfileMenu({ onSignOut }: ProfileMenuProps): JSX.Elemen
           <path d="M5 19c1.5-3 4-4.5 7-4.5s5.5 1.5 7 4.5" />
         </svg>
       </button>
-     {open && (
+      {open && (
         <div
           className="absolute right-0 z-30 mt-2 w-44 overflow-hidden rounded-xl border border-white/10 bg-slate-900/95 shadow-lg shadow-black/60 backdrop-blur"
           role="menu"
         >
-          <Link
-            href="/settings"
-            className="block px-4 py-2 text-sm text-slate-100 transition hover:bg-white/10"
-            role="menuitem"
-            onClick={() => setOpen(false)}
-          >
-            Settings
-          </Link>
           <button
             type="button"
             className="block w-full px-4 py-2 text-left text-sm text-rose-300 transition hover:bg-rose-500/20"
