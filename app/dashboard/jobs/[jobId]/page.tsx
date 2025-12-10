@@ -27,7 +27,7 @@ export default function JobDetailsPage(): JSX.Element {
   const params = useParams<{ jobId: string }>();
   const router = useRouter();
   const { user, loading } = useAuth();
-  const { jobs, refresh, loading: jobsLoading } = useJobs();
+  const { jobs, refresh, loading: jobsLoading, error: jobsError } = useJobs();
   const handleDownload = () => {
     if (!job) return;
     const doc = new jsPDF();
@@ -112,6 +112,18 @@ export default function JobDetailsPage(): JSX.Element {
     );
   }
 
+  if (jobsError) {
+    return (
+      <AppShell>
+        <Card title="Unable to load task" description={jobsError}>
+          <Button variant="secondary" onClick={() => refresh()}>
+            Retry
+          </Button>
+        </Card>
+      </AppShell>
+    );
+  }
+
   if (!job) {
     return (
       <AppShell>
@@ -148,18 +160,45 @@ export default function JobDetailsPage(): JSX.Element {
         </div>
 
         <section className="grid gap-6 lg:grid-cols-3">
-          <Card title="Timeline" className="lg:col-span-2">
-            <ol className="space-y-3">
-              {job.timeline.map((entry) => (
-                <li key={`${entry.label}-${entry.at}`} className="flex items-start gap-3 text-sm text-slate-300">
-                  <span className="mt-1 h-2 w-2 rounded-full bg-brand-primary" />
+          <Card title="Aggregate findings" description="Consolidated report from all workers" className="lg:col-span-2">
+            {job.aggregate ? (
+              <div className="space-y-4 text-sm text-slate-300">
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-slate-400">Open ports</p>
+                  <p className="mt-1 font-semibold text-slate-50">
+                    {job.aggregate.openPorts.length ? job.aggregate.openPorts.join(', ') : 'None detected'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-slate-400">Service summary</p>
+                  <ul className="mt-1 space-y-1">
+                    {Object.entries(job.aggregate.serviceSummary).map(([key, value]) => (
+                      <li key={key} className="text-slate-300">
+                        <span className="font-medium text-slate-50">{key}:</span> {value}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-slate-400">Web findings</p>
+                  <ul className="mt-1 space-y-1">
+                    {Object.entries(job.aggregate.webFindings).map(([key, value]) => (
+                      <li key={key} className="text-slate-300">
+                        <span className="font-medium text-slate-50">{key}:</span> {value}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                {job.aggregate.notes && (
                   <div>
-                    <p className="font-medium text-slate-100">{entry.label}</p>
-                    <p className="text-xs text-slate-400">{formatDate(entry.at)}</p>
+                    <p className="text-xs uppercase tracking-widest text-slate-400">Notes</p>
+                    <p className="mt-1 text-slate-300">{job.aggregate.notes}</p>
                   </div>
-                </li>
-              ))}
-            </ol>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-400">Aggregated findings will appear once workers publish their reports.</p>
+            )}
           </Card>
 
           <Card title="Meta" description="Operational metadata and ownership">
@@ -236,45 +275,18 @@ export default function JobDetailsPage(): JSX.Element {
             )}
           </Card>
 
-          <Card title="Aggregate findings" description="Consolidated report from all workers">
-            {job.aggregate ? (
-              <div className="space-y-4 text-sm text-slate-300">
-                <div>
-                  <p className="text-xs uppercase tracking-widest text-slate-400">Open ports</p>
-                  <p className="mt-1 font-semibold text-slate-50">
-                    {job.aggregate.openPorts.length ? job.aggregate.openPorts.join(', ') : 'None detected'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-widest text-slate-400">Service summary</p>
-                  <ul className="mt-1 space-y-1">
-                    {Object.entries(job.aggregate.serviceSummary).map(([key, value]) => (
-                      <li key={key} className="text-slate-300">
-                        <span className="font-medium text-slate-50">{key}:</span> {value}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-widest text-slate-400">Web findings</p>
-                  <ul className="mt-1 space-y-1">
-                    {Object.entries(job.aggregate.webFindings).map(([key, value]) => (
-                      <li key={key} className="text-slate-300">
-                        <span className="font-medium text-slate-50">{key}:</span> {value}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                {job.aggregate.notes && (
+          <Card title="Timeline">
+            <ol className="space-y-3">
+              {job.timeline.map((entry) => (
+                <li key={`${entry.label}-${entry.at}`} className="flex items-start gap-3 text-sm text-slate-300">
+                  <span className="mt-1 h-2 w-2 rounded-full bg-brand-primary" />
                   <div>
-                    <p className="text-xs uppercase tracking-widest text-slate-400">Notes</p>
-                    <p className="mt-1 text-slate-300">{job.aggregate.notes}</p>
+                    <p className="font-medium text-slate-100">{entry.label}</p>
+                    <p className="text-xs text-slate-400">{formatDate(entry.at)}</p>
                   </div>
-                )}
-              </div>
-            ) : (
-              <p className="text-sm text-slate-400">Aggregated findings will appear once workers publish their reports.</p>
-            )}
+                </li>
+              ))}
+            </ol>
           </Card>
         </section>
 

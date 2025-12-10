@@ -4,76 +4,14 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 
 import AppShell from '@/components/layout/AppShell';
 import Card from '@/components/ui/Card';
-import clsx from 'clsx';
+import { countryCodeToName } from '@/lib/gis';
+import type { NodeCountryStat, NodeGeoResponse } from '@/lib/api/nodes';
 import type { FeatureCollection, Point } from 'geojson';
 import dynamic from 'next/dynamic';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Layer, LayerProps, NavigationControl, Source } from 'react-map-gl/maplibre';
 
 const Map = dynamic(() => import('react-map-gl/maplibre').then((mod) => mod.Map), { ssr: false });
-
-type MeshNode = {
-  alias: string;
-  location: string;
-  latencyMs: number;
-  coords: { lat: number; lng: number };
-  status?: 'online' | 'degraded' | 'offline';
-};
-
-const NODES: MeshNode[] = [
-  { alias: 'Edge-France', location: 'France', coords: { lat: 46.2276, lng: 2.2137 }, status: 'online', latencyMs: 42 },
-  { alias: 'Edge-USA-1', location: 'United States', coords: { lat: 39.8283, lng: -98.5795 }, status: 'online', latencyMs: 38 },
-  { alias: 'Edge-USA-2', location: 'United States', coords: { lat: 39.8283, lng: -98.5795 }, status: 'online', latencyMs: 44 },
-  { alias: 'Edge-USA-3', location: 'United States', coords: { lat: 39.8283, lng: -98.5795 }, status: 'online', latencyMs: 46 },
-  { alias: 'Edge-Japan', location: 'Japan', coords: { lat: 36.2048, lng: 138.2529 }, status: 'degraded', latencyMs: 95 },
-  { alias: 'Edge-Singapore', location: 'Singapore', coords: { lat: 1.3521, lng: 103.8198 }, status: 'online', latencyMs: 78 },
-  { alias: 'Edge-Australia', location: 'Australia', coords: { lat: -25.2744, lng: 133.7751 }, status: 'offline', latencyMs: 0 },
-  { alias: 'Edge-UK', location: 'United Kingdom', coords: { lat: 55.3781, lng: -3.436 }, status: 'online', latencyMs: 30 },
-  { alias: 'Edge-Germany', location: 'Germany', coords: { lat: 51.1657, lng: 10.4515 }, status: 'online', latencyMs: 35 },
-  { alias: 'Edge-India', location: 'India', coords: { lat: 20.5937, lng: 78.9629 }, status: 'degraded', latencyMs: 105 },
-  { alias: 'Edge-Brazil', location: 'Brazil', coords: { lat: -14.235, lng: -51.9253 }, status: 'online', latencyMs: 82 },
-  { alias: 'Edge-Canada', location: 'Canada', coords: { lat: 56.1304, lng: -106.3468 }, status: 'online', latencyMs: 50 },
-  { alias: 'Edge-SouthAfrica', location: 'South Africa', coords: { lat: -30.5595, lng: 22.9375 }, status: 'online', latencyMs: 120 },
-  { alias: 'Edge-UAE', location: 'United Arab Emirates', coords: { lat: 23.4241, lng: 53.8478 }, status: 'online', latencyMs: 70 },
-  { alias: 'Edge-Spain', location: 'Spain', coords: { lat: 40.4637, lng: -3.7492 }, status: 'online', latencyMs: 48 },
-  { alias: 'Edge-Romania-1', location: 'Romania', coords: { lat: 45.9432, lng: 24.9668 }, status: 'online', latencyMs: 36 },
-  { alias: 'Edge-Romania-2', location: 'Romania', coords: { lat: 45.9432, lng: 24.9668 }, status: 'online', latencyMs: 39 },
-  { alias: 'Edge-Romania-3', location: 'Romania', coords: { lat: 45.9432, lng: 24.9668 }, status: 'degraded', latencyMs: 58 }
-];
-
-const groupedNodes = NODES.reduce<Record<string, { location: string; coords: MeshNode['coords']; status: MeshNode['status']; count: number }>>(
-  (acc, node) => {
-    const key = `${node.coords.lat},${node.coords.lng}`;
-    if (!acc[key]) {
-      acc[key] = { location: node.location, coords: node.coords, status: node.status ?? 'online', count: 0 };
-    }
-    acc[key].count += 1;
-    // degrade status if any node is degraded/offline
-    if (node.status === 'offline') {
-      acc[key].status = 'offline';
-    } else if (node.status === 'degraded' && acc[key].status !== 'offline') {
-      acc[key].status = 'degraded';
-    }
-    return acc;
-  },
-  {}
-);
-
-const nodeFeatures: FeatureCollection<Point, { status: NonNullable<MeshNode['status']>; location: string; count: number }> = {
-  type: 'FeatureCollection',
-  features: Object.values(groupedNodes).map((entry) => ({
-    type: 'Feature',
-    geometry: {
-      type: 'Point',
-      coordinates: [entry.coords.lng, entry.coords.lat]
-    },
-    properties: {
-      status: entry.status ?? 'online',
-      location: entry.location,
-      count: entry.count
-    }
-  }))
-};
 
 const nodeLayer: LayerProps = {
   id: 'nodes',
@@ -81,10 +19,20 @@ const nodeLayer: LayerProps = {
   source: 'nodes',
   paint: {
     'circle-color': '#d62828',
-    'circle-radius': 8,
+    'circle-radius': [
+      'interpolate',
+      ['linear'],
+      ['get', 'count'],
+      1,
+      8,
+      10,
+      14,
+      25,
+      24
+    ],
     'circle-stroke-color': '#ff0033',
     'circle-stroke-width': 2,
-    'circle-blur': 0.15
+    'circle-blur': 0.2
   }
 };
 
@@ -94,9 +42,19 @@ const nodeGlowLayer: LayerProps = {
   source: 'nodes',
   paint: {
     'circle-color': '#ff174f',
-    'circle-opacity': 0.55,
-    'circle-radius': 22,
-    'circle-blur': 1.2
+    'circle-opacity': 0.5,
+    'circle-radius': [
+      'interpolate',
+      ['linear'],
+      ['get', 'count'],
+      1,
+      20,
+      10,
+      32,
+      25,
+      42
+    ],
+    'circle-blur': 1.35
   }
 };
 
@@ -107,7 +65,7 @@ const nodeLabelLayer: LayerProps = {
   layout: {
     'text-field': ['to-string', ['get', 'count']],
     'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-    'text-size': 10,
+    'text-size': 11,
     'text-anchor': 'center',
     'text-offset': [0, 0]
   },
@@ -118,9 +76,51 @@ const nodeLabelLayer: LayerProps = {
   }
 };
 
+type HoverInfo = { location: string; count: number; x: number; y: number };
+
 export default function MeshPage(): JSX.Element {
+  const [geoJson, setGeoJson] =
+    useState<FeatureCollection<Point, { code: string; count: number }> | null>(null);
+  const [stats, setStats] = useState<NodeCountryStat[]>([]);
+  const [dataSource, setDataSource] = useState<'live' | 'mock'>('mock');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [mapError, setMapError] = useState(false);
-  const [hoverInfo, setHoverInfo] = useState<{ location: string; count: number; x: number; y: number } | null>(null);
+  const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch('/api/nodes', { cache: 'no-store' });
+        const payload = (await response.json().catch(() => null)) as NodeGeoResponse | null;
+        if (!response.ok || !payload) {
+          throw new Error(payload?.message ?? 'Unable to load mesh nodes.');
+        }
+        if (cancelled) return;
+        setGeoJson(payload.geoJson);
+        setStats(payload.stats ?? []);
+        setDataSource(payload.source ?? 'live');
+      } catch (err) {
+        if (cancelled) return;
+        const message = err instanceof Error ? err.message : 'Unable to load mesh nodes.';
+        setError(message);
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const orderedStats = useMemo(
+    () => [...stats].sort((a, b) => b.count - a.count),
+    [stats]
+  );
 
   return (
     <AppShell>
@@ -129,8 +129,12 @@ export default function MeshPage(): JSX.Element {
           <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Mesh</p>
           <h1 className="text-3xl font-semibold text-slate-50">Node map</h1>
           <p className="text-sm text-slate-300">
-            Visualize node distribution and inspect aliases with their declared locations.
+            Live registry of active nodes aggregated by country. Data is sourced from the Ratio1
+            oracles service and falls back to mock counts if the endpoint is unavailable.
           </p>
+          <div className="mt-1 inline-flex w-fit items-center gap-2 rounded-full border border-white/10 bg-slate-900/60 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
+            Source: {dataSource === 'live' ? 'live oracles API' : 'mock registry'}
+          </div>
         </header>
 
         <Card>
@@ -138,13 +142,13 @@ export default function MeshPage(): JSX.Element {
             <div className="relative h-[520px] w-full overflow-hidden rounded-2xl">
               <Map
                 initialViewState={{
-                  latitude: 15,
-                  longitude: 20,
+                  latitude: 20,
+                  longitude: 10,
                   zoom: 1.3
                 }}
                 mapStyle="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
                 reuseMaps
-                style={{ width: '100%', height: '100%', filter: 'saturate(0.8) brightness(0.9)' }}
+                style={{ width: '100%', height: '100%', filter: 'saturate(0.85) brightness(0.95)' }}
                 onError={() => setMapError(true)}
                 mapLib={import('maplibre-gl')}
                 attributionControl={false}
@@ -153,8 +157,10 @@ export default function MeshPage(): JSX.Element {
                   const feature = event.features?.[0];
                   if (feature) {
                     const properties = feature.properties as Record<string, unknown>;
+                    const code = String(properties.code ?? '??');
+                    const location = countryCodeToName(code) ?? code;
                     setHoverInfo({
-                      location: String(properties.location ?? 'Unknown'),
+                      location,
                       count: Number(properties.count ?? 0),
                       x: event.point.x,
                       y: event.point.y
@@ -166,11 +172,13 @@ export default function MeshPage(): JSX.Element {
                 onMouseLeave={() => setHoverInfo(null)}
               >
                 <NavigationControl position="top-left" />
-                <Source id="nodes" type="geojson" data={nodeFeatures}>
-                  <Layer {...nodeGlowLayer} />
-                  <Layer {...nodeLayer} />
-                  <Layer {...nodeLabelLayer} />
-                </Source>
+                {geoJson && (
+                  <Source id="nodes" type="geojson" data={geoJson}>
+                    <Layer {...nodeGlowLayer} />
+                    <Layer {...nodeLayer} />
+                    <Layer {...nodeLabelLayer} />
+                  </Source>
+                )}
               </Map>
               <div className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-b from-slate-950/60 via-slate-950/40 to-slate-950/60" />
               {hoverInfo && (
@@ -179,7 +187,9 @@ export default function MeshPage(): JSX.Element {
                   style={{ left: hoverInfo.x, top: hoverInfo.y }}
                 >
                   <p className="font-semibold text-slate-50">{hoverInfo.location}</p>
-                  <p className="text-slate-300">{hoverInfo.count} node{hoverInfo.count === 1 ? '' : 's'}</p>
+                  <p className="text-slate-300">
+                    {hoverInfo.count} node{hoverInfo.count === 1 ? '' : 's'}
+                  </p>
                 </div>
               )}
               {mapError && (
@@ -191,42 +201,49 @@ export default function MeshPage(): JSX.Element {
           </div>
         </Card>
 
-        <Card title="Nodes" description="Alias and location registry">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-white/10 text-left">
-              <thead>
-                <tr className="text-xs uppercase tracking-[0.16em] text-slate-400">
-                  <th className="px-3 py-2 font-semibold">Node Alias</th>
-                  <th className="px-3 py-2 font-semibold">Location</th>
-                  <th className="px-3 py-2 font-semibold">Latency</th>
-                  <th className="px-3 py-2 font-semibold">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/10">
-                {NODES.map((node) => (
-                  <tr key={node.alias} className="text-sm text-slate-200">
-                    <td className="px-3 py-3 font-semibold text-slate-100">{node.alias}</td>
-                    <td className="px-3 py-3 text-slate-300">{node.location}</td>
-                    <td className="px-3 py-3 text-slate-300">{node.latencyMs ? `${node.latencyMs} ms` : '—'}</td>
-                    <td className="px-3 py-3 text-right">
-                      <span
-                        className={clsx(
-                          'rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em]',
-                          node.status === 'online' && 'bg-emerald-500/20 text-emerald-100 ring-1 ring-emerald-500/40',
-                          node.status === 'degraded' && 'bg-amber-500/20 text-amber-100 ring-1 ring-amber-500/40',
-                          node.status === 'offline' && 'bg-rose-500/20 text-rose-100 ring-1 ring-rose-500/40'
-                        )}
-                      >
-                        {node.status ?? 'unknown'}
-                      </span>
-                   </td>
+        <Card title="Nodes by country" description="Aggregated counts from the active node registry.">
+          {loading && (
+            <p className="text-sm text-slate-300">Loading node registry...</p>
+          )}
+          {!loading && error && (
+            <p className="text-sm text-rose-200">Unable to load nodes: {error}</p>
+          )}
+          {!loading && !error && (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-white/10 text-left">
+                <thead>
+                  <tr className="text-xs uppercase tracking-[0.16em] text-slate-400">
+                    <th className="px-3 py-2 font-semibold">Location</th>
+                    <th className="px-3 py-2 font-semibold">Total nodes</th>
+                    <th className="px-3 py-2 font-semibold">Data center</th>
+                    <th className="px-3 py-2 font-semibold text-right">KYB</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-white/10">
+                  {orderedStats.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="px-3 py-3 text-sm text-slate-300">
+                        No nodes reported.
+                      </td>
+                    </tr>
+                  )}
+                  {orderedStats.map((entry) => (
+                    <tr key={entry.code} className="text-sm text-slate-200">
+                      <td className="px-3 py-3 font-semibold text-slate-100">
+                        {countryCodeToName(entry.code) ?? entry.code}
+                      </td>
+                      <td className="px-3 py-3 text-slate-300">{entry.count}</td>
+                      <td className="px-3 py-3 text-slate-300">{entry.datacenterCount}</td>
+                      <td className="px-3 py-3 text-right text-slate-300">{entry.kybCount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </Card>
       </div>
     </AppShell>
   );
 }
+

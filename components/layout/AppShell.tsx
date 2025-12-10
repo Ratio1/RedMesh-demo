@@ -78,11 +78,6 @@ export default function AppShell({ children }: PropsWithChildren<{}>): JSX.Eleme
             ))}
           </nav>
           <div className="flex items-center gap-4">
-            {config?.hostId && (
-              <div className="hidden flex-col text-xs uppercase tracking-[0.25em] text-slate-400 sm:flex">
-                <span>Host {config.hostId}</span>
-              </div>
-            )}
             <div className="hidden items-center gap-3 sm:flex">
               <div className="text-right">
                 <p className="text-base font-semibold text-brand-primary">

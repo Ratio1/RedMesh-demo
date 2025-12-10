@@ -40,8 +40,6 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
   );
   const featuresTouchedRef = useRef(false);
   const [workerCount, setWorkerCount] = useState(2);
-  const [payloadUri, setPayloadUri] = useState('');
-  const [notes, setNotes] = useState('');
   const [priority, setPriority] = useState('medium');
   const [distribution, setDistribution] = useState<JobDistribution>('slice');
   const [duration, setDuration] = useState<JobDuration>('singlepass');
@@ -147,9 +145,7 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
             .filter((value) => !Number.isNaN(value)),
           features: selectedFeatures,
           workerCount,
-          payloadUri: payloadUri || undefined,
           priority,
-          notes: notes || undefined,
           owner: user?.username,
           distribution,
           duration,
@@ -178,8 +174,6 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
       setSelectedFeatures(featureCatalog.map((feature) => feature.id));
       featuresTouchedRef.current = false;
       setWorkerCount(2);
-      setPayloadUri('');
-      setNotes('');
       setPriority('medium');
       setDistribution('slice');
       setDuration('singlepass');
@@ -572,29 +566,6 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
               </div>
             </div>
           </div>
-        </div>
-        <div className="space-y-2">
-          <label htmlFor="job-payload" className="block text-sm font-medium text-slate-200">
-            Payload URI (optional)
-          </label>
-          <Input
-            id="job-payload"
-            placeholder="r1fs://path/to/payload"
-            value={payloadUri}
-            onChange={(event) => setPayloadUri(event.target.value)}
-          />
-        </div>
-        <div className="space-y-2">
-          <label htmlFor="job-notes" className="block text-sm font-medium text-slate-200">
-            Operator notes (optional)
-          </label>
-          <TextArea
-            id="job-notes"
-            placeholder="Escalation contacts, scope boundaries, credentials, etc."
-            value={notes}
-            onChange={(event) => setNotes(event.target.value)}
-            rows={3}
-          />
         </div>
         <div className="space-y-2">
           <label htmlFor="job-priority" className="block text-sm font-medium text-slate-200">

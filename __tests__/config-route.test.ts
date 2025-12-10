@@ -29,6 +29,8 @@ describe('config API route', () => {
 
   afterEach(() => {
     delete process.env.EE_REDMESH_API_URL;
+    delete process.env.REDMESH_API_URL;
+    delete process.env.R1EN_REDMESH_API_URL;
     delete process.env.EE_CHAINSTORE_API_URL;
     delete process.env.REDMESH_TOKEN;
     delete process.env.EE_HOST_ID;
@@ -65,5 +67,18 @@ describe('config API route', () => {
     expect(payload.cstoreStatus).toEqual({ status: 'ok' });
     expect(payload.r1fsStatus).toEqual({ status: 'ok' });
     expect(mockedFactory).toHaveBeenCalled();
+  });
+
+  it('accepts REDMESH_API_URL as a fallback for status detection', async () => {
+    process.env.REDMESH_API_URL = 'http://fallback-redmesh:4000';
+    process.env.EE_CHAINSTORE_API_URL = 'http://localhost:5000';
+    process.env.EE_HOST_ID = 'en-02';
+    resetAppConfigCache();
+
+    const response = await GET();
+    const payload = await response.json();
+
+    expect(payload.redmeshApiConfigured).toBe(true);
+    expect(payload.mockMode).toBe(false);
   });
 });

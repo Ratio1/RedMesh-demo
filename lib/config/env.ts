@@ -1,5 +1,6 @@
 export interface AppRuntimeConfig {
   redmeshApiUrl?: string;
+  oraclesApiUrl?: string;
   chainstoreApiUrl?: string;
   chainstorePeers: string[];
   r1fsApiUrl?: string;
@@ -55,7 +56,16 @@ function parsePeerList(raw?: string | null): string[] {
 }
 
 function resolveConfig(): AppRuntimeConfig {
-  const redmeshApiUrl = normalizeUrl(process.env.EE_REDMESH_API_URL);
+  // Prefer worker-provided EE_* variables but allow REDMESH_API_URL as a fallback for status checks.
+  const redmeshApiUrl = normalizeUrl(
+    process.env.EE_REDMESH_API_URL ?? process.env.REDMESH_API_URL ?? process.env.R1EN_REDMESH_API_URL
+  );
+  const oraclesApiUrl = normalizeUrl(
+    process.env.EE_ORACLES_API_URL ??
+      process.env.ORACLES_API_URL ??
+      process.env.NEXT_PUBLIC_ORACLES_URL ??
+      process.env.R1EN_ORACLES_API_URL
+  );
   const chainstoreApiUrl = normalizeUrl(process.env.EE_CHAINSTORE_API_URL);
   const r1fsApiUrl = normalizeUrl(process.env.EE_R1FS_API_URL);
   const hostId = process.env.EE_HOST_ID?.trim();
@@ -69,6 +79,7 @@ function resolveConfig(): AppRuntimeConfig {
 
   return {
     redmeshApiUrl,
+    oraclesApiUrl,
     chainstoreApiUrl,
     chainstorePeers,
     r1fsApiUrl,
