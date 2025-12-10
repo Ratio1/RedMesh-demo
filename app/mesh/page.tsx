@@ -165,9 +165,7 @@ export default function MeshPage(): JSX.Element {
           </p>
           <h1 className="text-3xl font-semibold text-slate-50">Node map</h1>
           <p className="text-sm text-slate-300">
-            Live registry of active nodes aggregated by country. Data is sourced
-            from the Ratio1 oracles service and falls back to mock counts if the
-            endpoint is unavailable.
+            Live registry of active nodes aggregated by country.
           </p>
         </header>
 
