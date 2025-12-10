@@ -100,41 +100,109 @@ function hasTag(tags: unknown, value: string): boolean {
   return Array.isArray(tags) && tags.some((tag) => typeof tag === 'string' && tag.includes(value));
 }
 
-async function fetchActiveNodeStats(oraclesApiUrl: string): Promise<NodeCountryStat[]> {
-  const response = await fetch(`${oraclesApiUrl}/active_nodes_list?items_per_page=100000&page=1`, {
-    cache: 'no-store'
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new ApiError(response.status, text || 'Unable to load node registry.');
-  }
-
-  const payload = await response.json();
-  const nodes = payload?.result?.nodes;
-  if (!nodes || typeof nodes !== 'object') {
-    throw new ApiError(500, 'Node registry payload is malformed.');
-  }
-
-  return computeStatsFromNodes(nodes as Record<string, any>);
-}
-
 async function fetchNodeLastEpoch(oraclesApiUrl: string, ethAddr: string): Promise<any | null> {
-  const response = await fetch(`${oraclesApiUrl}/node_last_epoch?eth_node_addr=${ethAddr}`, {
-    cache: 'no-store'
-  });
+  try {
+    console.log(`\n[fetchNodeLastEpoch] Fetching data for ETH address: ${ethAddr}`);
+    const url = `${oraclesApiUrl}/node_last_epoch?eth_node_addr=${ethAddr}`;
+    console.log(`[fetchNodeLastEpoch] URL: ${url}`);
 
-  if (!response.ok) {
+    const response = await fetch(url, {
+      cache: 'no-store'
+    });
+
+    console.log(`[fetchNodeLastEpoch] Response status: ${response.status}`);
+
+    if (!response.ok) {
+      console.log(`[fetchNodeLastEpoch] ✗ Request failed`);
+      return null;
+    }
+
+    const payload = await response.json().catch(() => null);
+    const result = payload?.result;
+
+    if (result && !('error' in result)) {
+      console.log(`[fetchNodeLastEpoch] ✓ Got result with tags:`, result.tags);
+      console.log(`[fetchNodeLastEpoch] Node alias: ${result.node_alias}`);
+      console.log(`[fetchNodeLastEpoch] Node ETH address: ${result.node_eth_address}`);
+      return result;
+    }
+
+    console.log(`[fetchNodeLastEpoch] ✗ No valid result in response`);
+    return null;
+  } catch (error) {
+    console.error(`[fetchNodeLastEpoch] ✗ Error fetching data for ${ethAddr}:`, error);
     return null;
   }
+}
 
-  const payload = await response.json().catch(() => null);
-  const result = payload?.result;
-  if (result && !('error' in result)) {
-    return result;
+async function lookupEthAddressFromOracles(oraclesApiUrl: string, ratio1Address: string): Promise<string | null> {
+  try {
+    console.log(`\n========================================`);
+    console.log(`[lookupEthAddressFromOracles] Looking up ${ratio1Address}`);
+    const response = await fetch(`${oraclesApiUrl}/active_nodes_list?items_per_page=100000&page=1`, {
+      cache: 'no-store'
+    });
+
+    if (!response.ok) {
+      console.log(`[lookupEthAddressFromOracles] API call failed with status ${response.status}`);
+      return null;
+    }
+
+    const payload = await response.json().catch(() => null);
+    const nodes = payload?.result?.nodes;
+
+    if (!nodes || typeof nodes !== 'object') {
+      console.log(`[lookupEthAddressFromOracles] No nodes in response`);
+      return null;
+    }
+
+    const nodeCount = Object.keys(nodes).length;
+    console.log(`[lookupEthAddressFromOracles] Found ${nodeCount} nodes in active_nodes_list`);
+
+    // Debug: show all node addresses
+    const allAddrs = Object.keys(nodes);
+    console.log(`[lookupEthAddressFromOracles] All node addresses:`, JSON.stringify(allAddrs, null, 2));
+
+    // Search for the node by ratio1 address
+    let found = false;
+    for (const [nodeAddr, nodeData] of Object.entries(nodes)) {
+      if (nodeAddr === ratio1Address) {
+        found = true;
+        console.log(`[lookupEthAddressFromOracles] ✓ MATCH FOUND for ${ratio1Address}`);
+        console.log(`[lookupEthAddressFromOracles] Node data type:`, typeof nodeData);
+        console.log(`[lookupEthAddressFromOracles] Node data keys:`, Object.keys(nodeData || {}));
+        console.log(`[lookupEthAddressFromOracles] Full node data:`, JSON.stringify(nodeData, null, 2));
+
+        if (nodeData && typeof nodeData === 'object') {
+          const ethAddr = (nodeData as any).eth_addr || (nodeData as any).node_eth_address || (nodeData as any).eth_address;
+          console.log(`[lookupEthAddressFromOracles] ETH address extracted:`, ethAddr);
+
+          if (ethAddr && typeof ethAddr === 'string') {
+            console.log(`[lookupEthAddressFromOracles] ✓ Returning ETH address: ${ethAddr}`);
+            console.log(`========================================\n`);
+            return ethAddr;
+          } else {
+            console.log(`[lookupEthAddressFromOracles] ✗ Node found but no ETH address field`);
+          }
+        }
+      }
+    }
+
+    if (!found) {
+      console.log(`[lookupEthAddressFromOracles] ✗ No exact match for: ${ratio1Address}`);
+      console.log(`[lookupEthAddressFromOracles] First 3 addresses for comparison:`);
+      allAddrs.slice(0, 3).forEach(addr => {
+        console.log(`  - "${addr}" === "${ratio1Address}" ? ${addr === ratio1Address}`);
+      });
+    }
+    console.log(`========================================\n`);
+
+    return null;
+  } catch (error) {
+    console.error(`[lookupEthAddressFromOracles] Error:`, error);
+    console.log(`========================================\n`);
+    return null;
   }
-
-  return null;
 }
 
 function deriveEthAddress(peer: string): string | null {
@@ -146,7 +214,8 @@ function deriveEthAddress(peer: string): string | null {
   if (trimmed.startsWith('0xai_')) {
     try {
       return internalNodeAddressToEthAddress(trimmed);
-    } catch (_error) {
+    } catch (error) {
+      // Conversion failed, will try lookup instead
       return null;
     }
   }
@@ -231,48 +300,81 @@ export async function getNodeGeoData(): Promise<NodeGeoResponse> {
   const config = getAppConfig();
 
   try {
-    // Build node map from oracles payload when available to enrich host/peer coordinates.
-    let nodeMap: Record<string, any> | undefined;
-    let stats: NodeCountryStat[] = MOCK_STATS;
+    let stats: NodeCountryStat[] = [];
     const peerRecords: Record<string, any> = {};
 
-    if (config.oraclesApiUrl) {
-      const response = await fetch(`${config.oraclesApiUrl}/active_nodes_list?items_per_page=100000&page=1`, {
-        cache: 'no-store'
-      });
-      if (response.ok) {
-        const payload = await response.json().catch(() => null);
-        const nodes = payload?.result?.nodes;
-        if (nodes && typeof nodes === 'object') {
-          nodeMap = nodes as Record<string, any>;
-          stats = computeStatsFromNodes(nodeMap);
-        }
-      }
+    console.log('\n╔════════════════════════════════════════════════════════════════╗');
+    console.log('║                   getNodeGeoData - START                       ║');
+    console.log('╚════════════════════════════════════════════════════════════════╝');
+    console.log('[getNodeGeoData] Oracle API URL:', config.oraclesApiUrl);
+    console.log('[getNodeGeoData] Peers:', config.chainstorePeers);
+    console.log('[getNodeGeoData] Total peers to process:', config.chainstorePeers.length);
 
-      // Fetch node_last_epoch per peer to capture their tags when possible.
+    if (config.oraclesApiUrl && config.chainstorePeers.length > 0) {
+      // Fetch node_last_epoch per peer from EE_CHAINSTORE_PEERS
       await Promise.all(
-        config.chainstorePeers.map(async (peer) => {
-          const ethAddr = deriveEthAddress(peer);
-          if (!ethAddr) return;
+        config.chainstorePeers.map(async (peer, index) => {
+          console.log(`\n--- Processing peer ${index + 1}/${config.chainstorePeers.length}: ${peer} ---`);
+
+          // Try to convert ratio1 address to ETH address
+          let ethAddr = deriveEthAddress(peer);
+
+          if (ethAddr) {
+            console.log(`[getNodeGeoData] ✓ Direct conversion successful: ${ethAddr}`);
+          } else {
+            console.log(`[getNodeGeoData] ✗ Direct conversion failed, trying lookup...`);
+            ethAddr = await lookupEthAddressFromOracles(config.oraclesApiUrl as string, peer);
+          }
+
+          if (!ethAddr) {
+            console.log(`[getNodeGeoData] ✗ FAILED: No ETH address found for peer: ${peer}\n`);
+            return;
+          }
+
+          console.log(`[getNodeGeoData] Querying node_last_epoch for ${ethAddr}`);
           const record = await fetchNodeLastEpoch(config.oraclesApiUrl as string, ethAddr);
+
           if (record) {
+            console.log(`[getNodeGeoData] ✓ SUCCESS: Got record for ${peer}`);
+            console.log(`  - Alias: ${record.node_alias}`);
+            console.log(`  - Tags: ${JSON.stringify(record.tags)}`);
+            console.log(`  - ETH: ${record.node_eth_address}\n`);
             peerRecords[peer] = record;
+          } else {
+            console.log(`[getNodeGeoData] ✗ FAILED: No record found for ${peer}\n`);
           }
         })
       );
+
+      // Compute stats from peer records only
+      const recordCount = Object.keys(peerRecords).length;
+      console.log(`\n[getNodeGeoData] Fetched ${recordCount}/${config.chainstorePeers.length} peer records`);
+
+      if (recordCount > 0) {
+        stats = computeStatsFromNodes(peerRecords);
+        console.log('[getNodeGeoData] Computed stats:', JSON.stringify(stats, null, 2));
+      } else {
+        console.log('[getNodeGeoData] ✗ No peer records found - will show empty data');
+      }
+    } else {
+      console.log('[getNodeGeoData] ✗ Oracle API not configured or no peers');
     }
 
-    const peers = buildPeerList(config.chainstorePeers, config.hostId, config.hostAddr, {
-      ...(nodeMap ?? {}),
-      ...peerRecords
-    });
-
+    const peers = buildPeerList(config.chainstorePeers, config.hostId, config.hostAddr, peerRecords);
     const geoJson = buildPeerGeo(peers);
-    return { stats, geoJson, source: config.oraclesApiUrl ? 'live' : 'mock', peers };
+
+    // Set source to 'live' only if we successfully fetched peer records
+    const source = config.oraclesApiUrl && Object.keys(peerRecords).length > 0 ? 'live' : 'mock';
+
+    console.log('\n╔════════════════════════════════════════════════════════════════╗');
+    console.log(`║  RESULT: ${Object.keys(peerRecords).length} peer records | Source: ${source.toUpperCase()}  ║`);
+    console.log('╚════════════════════════════════════════════════════════════════╝\n');
+
+    return { stats, geoJson, source, peers };
   } catch (error) {
-    // Fall back to mock data when live retrieval fails so the UI still renders.
-    console.error('Failed to load nodes from oracles API:', error);
+    // Fall back to empty data when live retrieval fails
+    console.error('\n[getNodeGeoData] ✗ ERROR:', error);
     const peers = buildPeerList(config.chainstorePeers, config.hostId, config.hostAddr);
-    return { stats: MOCK_STATS, geoJson: buildPeerGeo(peers), source: 'mock', peers };
+    return { stats: [], geoJson: buildPeerGeo(peers), source: 'mock', peers };
   }
 }
