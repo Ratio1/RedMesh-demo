@@ -5,6 +5,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import AppShell from '@/components/layout/AppShell';
 import Card from '@/components/ui/Card';
 import clsx from 'clsx';
+import type { FeatureCollection, Point } from 'geojson';
 import dynamic from 'next/dynamic';
 import { useState } from 'react';
 import { Layer, LayerProps, NavigationControl, Source } from 'react-map-gl/maplibre';
@@ -58,7 +59,7 @@ const groupedNodes = NODES.reduce<Record<string, { location: string; coords: Mes
   {}
 );
 
-const nodeFeatures: GeoJSON.FeatureCollection = {
+const nodeFeatures: FeatureCollection<Point, { status: NonNullable<MeshNode['status']>; location: string; count: number }> = {
   type: 'FeatureCollection',
   features: Object.values(groupedNodes).map((entry) => ({
     type: 'Feature',

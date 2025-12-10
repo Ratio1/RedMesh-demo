@@ -118,7 +118,7 @@ function normalizeAggregate(raw: any): JobAggregateReport | undefined {
 }
 
 function normalizeDistribution(value: unknown): JobDistribution {
-  const normalized = value?.toString().toLowerCase();
+  const normalized = value?.toString().toLowerCase() ?? '';
   if (['mirror', 'shared', 'duplicate', 'all'].includes(normalized)) {
     return 'mirror';
   }
@@ -127,7 +127,7 @@ function normalizeDistribution(value: unknown): JobDistribution {
 }
 
 function normalizeDuration(value: unknown): JobDuration {
-  const normalized = value?.toString().toLowerCase();
+  const normalized = value?.toString().toLowerCase() ?? '';
   if (['continuous', 'monitor', 'monitoring', 'loop'].includes(normalized)) {
     return 'continuous';
   }
