@@ -15,8 +15,8 @@ export default function DashboardPage(): JSX.Element {
   const { user, loading } = useAuth();
   const router = useRouter();
   const { config } = useAppConfig();
-  const { jobs, ongoingJobs, completedJobs, loading: loadingJobs, error, refresh } = useJobs();
-  const [filter, setFilter] = useState<'ongoing' | 'completed' | 'failed'>('ongoing');
+  const { jobs, ongoingJobs, completedJobs, failedJobs, loading: loadingJobs, error, refresh } = useJobs();
+  const [filter, setFilter] = useState<'ongoing' | 'completed' | 'failed'>('completed');
 
   const totalOpenPorts = completedJobs.reduce((acc, job) => {
     const openPorts = job.aggregate?.openPorts ?? [];
@@ -27,15 +27,11 @@ export default function DashboardPage(): JSX.Element {
     (job) => (job.status === 'running' || job.status === 'queued') && (job.priority === 'high' || job.priority === 'critical')
   ).length;
 
-  const filteredJobs = jobs.filter((job) => {
-    if (filter === 'ongoing') {
-      return job.status === 'running' || job.status === 'queued';
-    }
-    if (filter === 'completed') {
-      return job.status === 'completed';
-    }
-    return job.status === 'failed';
-  });
+  const filteredJobs =
+    filter === 'ongoing' ? ongoingJobs : filter === 'completed' ? completedJobs : failedJobs;
+
+  const emptyState =
+    filter === 'ongoing' ? 'No ongoing tasks right now.' : 'No tasks in this state right now.';
 
   useEffect(() => {
     if (!loading && !user) {
@@ -80,7 +76,7 @@ export default function DashboardPage(): JSX.Element {
               <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-5 shadow-inner shadow-rose-900/40">
                 <p className="text-xs font-medium uppercase tracking-widest text-rose-200">Failed</p>
                 <p className="mt-3 text-3xl font-semibold text-slate-50">
-                  {jobs.filter((job) => job.status === 'failed').length}
+                  {failedJobs.length}
                 </p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-5 shadow-inner shadow-black/40">
@@ -120,7 +116,7 @@ export default function DashboardPage(): JSX.Element {
           description="Filter tasks by status and inspect their details."
           actions={
             <div className="flex gap-2">
-              {(['ongoing', 'completed', 'failed'] as const).map((option) => (
+              {(['completed', 'ongoing', 'failed'] as const).map((option) => (
                 <Button
                   key={option}
                   variant={filter === option ? 'primary' : 'secondary'}
@@ -133,7 +129,20 @@ export default function DashboardPage(): JSX.Element {
             </div>
           }
         >
-          <JobList title="" description="" jobs={filteredJobs} emptyState="No tasks in this state right now." bare />
+          <JobList
+            title=""
+            description=""
+            jobs={filteredJobs}
+            emptyState={emptyState}
+            emptyAction={
+              filter === 'ongoing' ? (
+                <Button asChild size="sm">
+                  <Link href="/dashboard/jobs/new">Create task now</Link>
+                </Button>
+              ) : undefined
+            }
+            bare
+          />
         </Card>
       </div>
     </AppShell>

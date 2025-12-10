@@ -40,7 +40,7 @@ export async function authenticateUser(
   const envPassword = config.redmeshPassword?.trim();
   if (envPassword && username === 'admin') {
     if (password !== envPassword) {
-      throw new ApiError(401, 'Invalid credentials.');
+      throw new ApiError(401, 'Password does not match.');
     }
 
     return {
@@ -68,7 +68,7 @@ export async function authenticateUser(
 
   if (!response.ok) {
     if (response.status === 401) {
-      throw new ApiError(401, 'Invalid credentials.');
+      throw new ApiError(401, 'Password does not match.');
     }
 
     const text = await response.text();

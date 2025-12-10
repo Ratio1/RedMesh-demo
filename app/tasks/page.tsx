@@ -2,30 +2,52 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useEffect } from 'react';
 import AppShell from '@/components/layout/AppShell';
+import { useAuth } from '@/components/auth/AuthContext';
 import useJobs from '@/lib/hooks/useJobs';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import JobList from '@/components/dashboard/JobList';
+import { useRouter } from 'next/navigation';
 
 type Filter = 'ongoing' | 'completed' | 'failed' | 'all';
 
 export default function TasksPage(): JSX.Element {
-  const { jobs, ongoingJobs, completedJobs, loading, error, refresh } = useJobs();
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
+  const { jobs, ongoingJobs, completedJobs, failedJobs, loading, error, refresh } = useJobs();
   const [filter, setFilter] = useState<Filter>('ongoing');
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace('/');
+    }
+  }, [authLoading, user, router]);
+
+  if (!user) {
+    return (
+      <main className="flex min-h-screen items-center justify-center text-slate-200">
+        Redirecting...
+      </main>
+    );
+  }
 
   const filtered = (() => {
     switch (filter) {
       case 'ongoing':
         return ongoingJobs;
       case 'completed':
-        return completedJobs.filter((task) => task.status === 'completed');
+        return completedJobs;
       case 'failed':
-        return jobs.filter((task) => task.status === 'failed');
+        return failedJobs;
       default:
         return jobs;
     }
   })();
+
+  const emptyState =
+    filter === 'ongoing' ? 'No ongoing tasks right now.' : 'No tasks in this state right now.';
 
   return (
     <AppShell>
@@ -70,7 +92,14 @@ export default function TasksPage(): JSX.Element {
             title=""
             description=""
             jobs={filtered}
-            emptyState="No tasks in this state right now."
+            emptyState={emptyState}
+            emptyAction={
+              filter === 'ongoing' ? (
+                <Button asChild size="sm">
+                  <Link href="/dashboard/jobs/new">Create task now</Link>
+                </Button>
+              ) : undefined
+            }
             bare
           />
           {error && (

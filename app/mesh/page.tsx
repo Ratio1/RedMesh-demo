@@ -13,12 +13,14 @@ import type {
 import type { FeatureCollection, Point } from "geojson";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Layer,
   LayerProps,
   NavigationControl,
   Source,
 } from "react-map-gl/maplibre";
+import { useAuth } from "@/components/auth/AuthContext";
 
 const Map = dynamic(
   () => import("react-map-gl/maplibre").then((mod) => mod.Map),
@@ -91,6 +93,8 @@ const nodeLabelLayer: LayerProps = {
 type HoverInfo = { location: string; count: number; x: number; y: number };
 
 export default function MeshPage(): JSX.Element {
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
   const [geoJson, setGeoJson] = useState<FeatureCollection<
     Point,
     { code: string; count: number; label?: string; address?: string }
@@ -98,13 +102,24 @@ export default function MeshPage(): JSX.Element {
   const [peers, setPeers] = useState<NodePeer[]>([]);
   const [stats, setStats] = useState<NodeCountryStat[]>([]);
   const [dataSource, setDataSource] = useState<"live" | "mock">("mock");
-  const [loading, setLoading] = useState(true);
+  const [nodesLoading, setNodesLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mapError, setMapError] = useState(false);
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
 
   useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace("/");
+    }
+  }, [authLoading, user, router]);
+
+  useEffect(() => {
+    if (authLoading || !user) {
+      return;
+    }
+
     let cancelled = false;
+    setNodesLoading(true);
     (async () => {
       try {
         const response = await fetch("/api/nodes", { cache: "no-store" });
@@ -137,7 +152,7 @@ export default function MeshPage(): JSX.Element {
         setError(message);
       } finally {
         if (!cancelled) {
-          setLoading(false);
+          setNodesLoading(false);
         }
       }
     })();
@@ -145,7 +160,7 @@ export default function MeshPage(): JSX.Element {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authLoading, user]);
 
   const orderedPeers = useMemo(
     () => [...peers].sort((a, b) => a.label.localeCompare(b.label)),
@@ -155,6 +170,14 @@ export default function MeshPage(): JSX.Element {
     () => [...stats].sort((a, b) => b.count - a.count),
     [stats]
   );
+
+  if (!user) {
+    return (
+      <main className="flex min-h-screen items-center justify-center text-slate-200">
+        Redirecting...
+      </main>
+    );
+  }
 
   return (
     <AppShell>
@@ -250,15 +273,15 @@ export default function MeshPage(): JSX.Element {
           title="Nodes by country"
           description="Aggregated counts from the active node registry."
         >
-          {loading && (
+          {nodesLoading && (
             <p className="text-sm text-slate-300">Loading node registry...</p>
           )}
-          {!loading && error && (
+          {!nodesLoading && error && (
             <p className="text-sm text-rose-200">
               Unable to load nodes: {error}
             </p>
           )}
-          {!loading && !error && (
+          {!nodesLoading && !error && (
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-white/10 text-left">
                 <thead>

@@ -8,6 +8,7 @@ interface JobsState {
   jobs: Job[];
   ongoingJobs: Job[];
   completedJobs: Job[];
+  failedJobs: Job[];
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
@@ -76,14 +77,16 @@ export default function useJobs(): JobsState {
 
   const split = useMemo(() => {
     const ongoing = jobs.filter((job) => job.status === 'running' || job.status === 'queued');
-    const completed = jobs.filter((job) => job.status === 'completed' || job.status === 'failed');
-    return { ongoing, completed };
+    const completed = jobs.filter((job) => job.status === 'completed');
+    const failed = jobs.filter((job) => job.status === 'failed');
+    return { ongoing, completed, failed };
   }, [jobs]);
 
   return {
     jobs,
     ongoingJobs: split.ongoing,
     completedJobs: split.completed,
+    failedJobs: split.failed,
     loading,
     error,
     refresh: loadJobs

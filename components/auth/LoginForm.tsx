@@ -3,13 +3,11 @@
 import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/AuthContext';
-import { useAppConfig } from '@/components/layout/AppConfigContext';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 
 export default function LoginForm(): JSX.Element {
   const { signIn, error, loading } = useAuth();
-  const { config } = useAppConfig();
   const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -58,11 +56,6 @@ export default function LoginForm(): JSX.Element {
       {(localError || error) && (
         <div className="rounded-lg border border-[#e23d4b]/40 bg-[#e23d4b]/20 px-4 py-3 text-sm text-slate-100">
           {localError || error}
-        </div>
-      )}
-      {config?.mockMode && (
-        <div className="rounded-lg border border-brand-primary/25 bg-brand-primary/15 px-4 py-3 text-xs text-slate-100">
-          Mock mode is active. Try <code>admin / admin123</code> or <code>operator / operator123</code>.
         </div>
       )}
       <Button type="submit" disabled={loading || !username || !password}>

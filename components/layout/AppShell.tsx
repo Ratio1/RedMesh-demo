@@ -38,6 +38,9 @@ export default function AppShell({ children }: PropsWithChildren<{}>): JSX.Eleme
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  const displayName = user?.displayName ?? user?.username ?? 'Signed out';
+  const roleLabel = user ? user.roles.join(', ') || 'No roles' : 'Signed out';
+
   const apiStatus = {
     redmesh: Boolean(config?.redmeshApiConfigured),
     cstore: Boolean(config?.chainstoreApiConfigured),
@@ -81,18 +84,22 @@ export default function AppShell({ children }: PropsWithChildren<{}>): JSX.Eleme
             <div className="hidden items-center gap-3 sm:flex">
               <div className="text-right">
                 <p className="text-base font-semibold text-brand-primary">
-                  {user?.displayName ?? user?.username}
+                  {displayName}
                 </p>
-                <p className="text-xs text-slate-400">{user?.roles.join(', ') || 'operator'}</p>
+                <p className="text-xs text-slate-400">{roleLabel}</p>
               </div>
-              <ProfileMenu onSignOut={signOut} />
-              <Button asChild size="sm">
+              {user && <ProfileMenu onSignOut={signOut} />}
+              {user && (
+                <Button asChild size="sm">
+                  <Link href="/dashboard/jobs/new">Create task</Link>
+                </Button>
+              )}
+            </div>
+            {user && (
+              <Button asChild size="sm" className="sm:hidden">
                 <Link href="/dashboard/jobs/new">Create task</Link>
               </Button>
-            </div>
-            <Button asChild size="sm" className="sm:hidden">
-              <Link href="/dashboard/jobs/new">Create task</Link>
-            </Button>
+            )}
             <button
               type="button"
               className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/15 bg-slate-900/60 text-slate-200 transition hover:border-brand-primary hover:text-brand-primary sm:hidden"
@@ -146,13 +153,15 @@ export default function AppShell({ children }: PropsWithChildren<{}>): JSX.Eleme
                   Env: {config.environment}
                 </div>
               )}
-              <div className="flex items-center justify-between rounded-lg border border-white/10 bg-slate-900/60 px-3 py-2">
-                <div className="text-left">
-                  <p className="text-sm font-semibold text-brand-primary">{user?.displayName ?? user?.username}</p>
-                  <p className="text-[11px] text-slate-400">{user?.roles.join(', ') || 'operator'}</p>
+              {user && (
+                <div className="flex items-center justify-between rounded-lg border border-white/10 bg-slate-900/60 px-3 py-2">
+                  <div className="text-left">
+                    <p className="text-sm font-semibold text-brand-primary">{displayName}</p>
+                    <p className="text-[11px] text-slate-400">{roleLabel}</p>
+                  </div>
+                  <ProfileMenu onSignOut={signOut} />
                 </div>
-                <ProfileMenu onSignOut={signOut} />
-              </div>
+              )}
             </div>
           )}
         </div>

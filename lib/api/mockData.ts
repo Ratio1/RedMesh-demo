@@ -86,20 +86,22 @@ function buildJob(partial?: Partial<Job>): Job {
   const completed = new Date(now.getTime() - 1000 * 60 * 5);
 
   const workers: JobWorkerStatus[] = [
-    buildWorker('A1', 1, 1024, true),
-    buildWorker('B4', 1025, 2048, true),
-    buildWorker('C9', 2049, 4096, true)
+    buildWorker('A1', 1, 1024, true, { openPorts: [22, 443] }),
+    buildWorker('B4', 1025, 2048, true, { openPorts: [445] }),
+    buildWorker('C9', 2049, 4096, true, { openPorts: [8081] })
   ];
 
   const aggregate = {
     openPorts: Array.from(new Set(workers.flatMap((worker) => worker.openPorts))).sort((a, b) => a - b),
     serviceSummary: {
-      ssh: 'OpenSSH 9.0p1 allows password authentication',
-      http: 'nginx 1.24.0 without CSP header'
+      ssh: 'OpenSSH 9.3p1 with key auth enforced',
+      http: 'nginx 1.24.0 serving internal dashboard',
+      smb: 'Samba 4.19 file share exposed'
     },
     webFindings: {
       security_headers: 'Missing Content-Security-Policy header',
-      admin_panel: 'Accessible login form at /admin with default branding'
+      admin_panel: 'Accessible login form at /admin with default branding',
+      vpn_portal: 'SSL VPN landing page reachable'
     }
   };
 
@@ -150,15 +152,15 @@ const INITIAL_JOBS: Job[] = [
     id: randomUUID(),
     displayName: 'Mesh Breach Simulation - Finance cluster',
     target: '172.19.20.5',
-    status: 'running',
+    status: 'failed',
     summary: 'Simulated breach drill across finance subnet to validate containment.',
     createdAt: new Date(Date.now() - 1000 * 60 * 25).toISOString(),
     updatedAt: new Date().toISOString(),
     startedAt: new Date(Date.now() - 1000 * 60 * 20).toISOString(),
-    completedAt: undefined,
+    completedAt: new Date().toISOString(),
     priority: 'high',
     workers: [
-      buildWorker('F1', 1, 2000, false),
+      buildWorker('F1', 1, 2000, true),
       buildWorker('F2', 2001, 4000, false, {
         progress: 62,
         portsScanned: 1234,
@@ -167,9 +169,11 @@ const INITIAL_JOBS: Job[] = [
     ],
     workerCount: 2,
     aggregate: undefined,
+    lastError: 'Breach drill blocked by perimeter firewall during sweep.',
     timeline: buildTimeline([
       { label: 'Job created', at: new Date(Date.now() - 1000 * 60 * 25) },
-      { label: 'Dispatch issued to workers', at: new Date(Date.now() - 1000 * 60 * 20) }
+      { label: 'Dispatch issued to workers', at: new Date(Date.now() - 1000 * 60 * 20) },
+      { label: 'Job marked failed', at: new Date() }
     ]),
     distribution: 'mirror',
     duration: 'continuous',
@@ -180,18 +184,23 @@ const INITIAL_JOBS: Job[] = [
     id: randomUUID(),
     displayName: 'Mesh Diagnostics - Edge Node health',
     target: 'self',
-    status: 'queued',
+    status: 'completed',
     summary: 'Queued diagnostic bundle for the Worker App Runner plugin.',
     createdAt: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
-    updatedAt: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
-    startedAt: undefined,
-    completedAt: undefined,
+    updatedAt: new Date().toISOString(),
+    startedAt: new Date(Date.now() - 1000 * 60 * 4).toISOString(),
+    completedAt: new Date().toISOString(),
     priority: 'low',
-    workers: [],
-    aggregate: undefined,
+    workers: [buildWorker('H3', 1, 1024, true, { openPorts: [22, 161] })],
+    aggregate: {
+      openPorts: [22, 161],
+      serviceSummary: { ssh: 'OpenSSH 9.0p1', snmp: 'net-snmp 5.9 community enabled' },
+      webFindings: { diag_console: 'Diagnostics dashboard gated behind SSO' }
+    },
     featureSet: ['service_info_common'],
     timeline: buildTimeline([
-      { label: 'Job created', at: new Date(Date.now() - 1000 * 60 * 5) }
+      { label: 'Job created', at: new Date(Date.now() - 1000 * 60 * 5) },
+      { label: 'Diagnostics collected', at: new Date() }
     ]),
     duration: 'singlepass',
     distribution: 'slice',
@@ -208,29 +217,49 @@ const INITIAL_JOBS: Job[] = [
     startedAt: new Date(Date.now() - 1000 * 60 * 110).toISOString(),
     completedAt: new Date(Date.now() - 1000 * 60 * 70).toISOString(),
     priority: 'medium',
-    workers: [buildWorker('LAT1', 1, 2048, true)],
-    workerCount: 1
+    workers: [buildWorker('LAT1', 1, 2048, true, { openPorts: [53, 8080] })],
+    workerCount: 1,
+    aggregate: {
+      openPorts: [53, 8080],
+      serviceSummary: { dns: 'Bind 9.18.0 recursive with DNSSEC', http: 'Traefik 2.10 upstream with gzip' },
+      webFindings: {
+        common_paths: 'Exposed /status endpoint without auth',
+        cdn: 'Edge cache headers present for static assets'
+      }
+    }
   }),
   buildJob({
     id: randomUUID(),
     displayName: 'Mesh Load Test - EU mesh',
     target: 'eu.mesh.ratio1',
-    status: 'running',
+    status: 'completed',
     summary: 'Load test across EU edge nodes to benchmark concurrency.',
     createdAt: new Date(Date.now() - 1000 * 60 * 50).toISOString(),
     updatedAt: new Date().toISOString(),
     startedAt: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
-    completedAt: undefined,
+    completedAt: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
     priority: 'medium',
     workers: [
-      buildWorker('EU1', 1, 1500, false, { progress: 55, openPorts: [443] }),
-      buildWorker('EU2', 1501, 3000, false, { progress: 48 })
+      buildWorker('EU1', 1, 1500, true, { openPorts: [443, 9443] }),
+      buildWorker('EU2', 1501, 3000, true, { openPorts: [8443] })
     ],
     workerCount: 2,
-    aggregate: undefined,
+    aggregate: {
+      openPorts: [443, 8443, 9443],
+      serviceSummary: {
+        https: 'nginx 1.24.0 (mutual TLS)',
+        api: 'Envoy 1.27.0 reverse proxy',
+        grpc: 'Envoy gRPC ingress exposed on 9443'
+      },
+      webFindings: {
+        security_headers: 'Strict-Transport-Security enforced',
+        cors: 'Origins restricted to *.ratio1.internal'
+      }
+    },
     timeline: buildTimeline([
       { label: 'Job created', at: new Date(Date.now() - 1000 * 60 * 50) },
-      { label: 'Dispatch issued to workers', at: new Date(Date.now() - 1000 * 60 * 45) }
+      { label: 'Dispatch issued to workers', at: new Date(Date.now() - 1000 * 60 * 45) },
+      { label: 'Load test completed', at: new Date(Date.now() - 1000 * 60 * 5) }
     ])
   }),
   buildJob({
@@ -387,10 +416,7 @@ export async function authenticateMockUser(
 ): Promise<AuthSuccess> {
   const user = MOCK_USERS.find((candidate) => candidate.username === username);
   if (!user || user.password !== password) {
-    throw new ApiError(
-      401,
-      'Invalid credentials. Try admin/admin123 or operator/operator123 when mock mode is active.'
-    );
+    throw new ApiError(401, 'Password does not match.');
   }
 
   return {

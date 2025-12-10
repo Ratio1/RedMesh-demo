@@ -1,13 +1,32 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import AppShell from '@/components/layout/AppShell';
+import { useAuth } from '@/components/auth/AuthContext';
 import { useAppConfig } from '@/components/layout/AppConfigContext';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 
 export default function AdvancedPage(): JSX.Element {
+  const { user, loading } = useAuth();
+  const router = useRouter();
   const { config, refresh } = useAppConfig();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace('/');
+    }
+  }, [loading, user, router]);
+
+  if (!user) {
+    return (
+      <main className="flex min-h-screen items-center justify-center text-slate-200">
+        Redirecting...
+      </main>
+    );
+  }
 
   const formatStatus = (status: unknown, fallback: string) => {
     if (!status) {

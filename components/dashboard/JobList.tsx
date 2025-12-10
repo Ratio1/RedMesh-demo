@@ -1,5 +1,6 @@
 'use client';
 
+import { ReactNode } from 'react';
 import Link from 'next/link';
 import { Job } from '@/lib/api/types';
 import Card from '@/components/ui/Card';
@@ -12,6 +13,7 @@ interface JobListProps {
   description?: string;
   jobs: Job[];
   emptyState: string;
+  emptyAction?: ReactNode;
   bare?: boolean;
 }
 
@@ -82,11 +84,21 @@ function computeCompletion(job: Job): number {
   return 15;
 }
 
-export default function JobList({ title, description, jobs, emptyState, bare = false }: JobListProps): JSX.Element {
+export default function JobList({
+  title,
+  description,
+  jobs,
+  emptyState,
+  emptyAction,
+  bare = false
+}: JobListProps): JSX.Element {
   const content =
     jobs.length === 0 ? (
       <div className="flex items-center justify-between rounded-xl border border-dashed border-white/15 bg-slate-900/50 px-4 py-6 text-sm text-slate-200">
-        <p>{emptyState}</p>
+        <div>
+          <p>{emptyState}</p>
+          {emptyAction && <div className="mt-3">{emptyAction}</div>}
+        </div>
       </div>
     ) : (
       <div className="space-y-4">
