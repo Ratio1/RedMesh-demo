@@ -2,6 +2,7 @@ import type { FeatureCollection, Point } from 'geojson';
 import { ApiError } from './errors';
 import { getAppConfig } from '../config/env';
 import { countryCodeToLngLat, countryCountsToGeoJSON } from '../gis';
+import { internalNodeAddressToEthAddress } from '../utils/internalAddress';
 
 export interface NodeCountryStat {
   code: string;
@@ -136,6 +137,23 @@ async function fetchNodeLastEpoch(oraclesApiUrl: string, ethAddr: string): Promi
   return null;
 }
 
+function deriveEthAddress(peer: string): string | null {
+  const trimmed = peer.trim();
+  if (/^0x[a-fA-F0-9]{40}$/.test(trimmed)) {
+    return trimmed as `0x${string}`;
+  }
+
+  if (trimmed.startsWith('0xai_')) {
+    try {
+      return internalNodeAddressToEthAddress(trimmed);
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  return null;
+}
+
 function resolveCountry(tags?: unknown): string | null {
   const list = Array.isArray(tags) ? (tags as unknown[]) : [];
   const countryTag = list.find((tag) => typeof tag === 'string' && tag.startsWith('CT:')) as string | undefined;
@@ -174,7 +192,17 @@ function buildPeerList(
     });
   }
 
-  // For this view we only care about the local host; ignore other peers on the map.
+  peers.forEach((peer) => {
+    const nodeRecord = nodeMap?.[peer];
+    const coords = locatePeer(peer, nodeRecord);
+    entries.push({
+      id: peer,
+      label: peer,
+      address: peer,
+      kind: 'peer',
+      ...coords
+    });
+  });
 
   return entries;
 }
@@ -203,9 +231,10 @@ export async function getNodeGeoData(): Promise<NodeGeoResponse> {
   const config = getAppConfig();
 
   try {
-    // Build node map from oracles payload when available to enrich host coordinates.
+    // Build node map from oracles payload when available to enrich host/peer coordinates.
     let nodeMap: Record<string, any> | undefined;
     let stats: NodeCountryStat[] = MOCK_STATS;
+    const peerRecords: Record<string, any> = {};
 
     if (config.oraclesApiUrl) {
       const response = await fetch(`${config.oraclesApiUrl}/active_nodes_list?items_per_page=100000&page=1`, {
@@ -219,16 +248,23 @@ export async function getNodeGeoData(): Promise<NodeGeoResponse> {
           stats = computeStatsFromNodes(nodeMap);
         }
       }
-    }
 
-    let hostRecord: any | null = null;
-    if (config.oraclesApiUrl && config.hostEthAddr) {
-      hostRecord = await fetchNodeLastEpoch(config.oraclesApiUrl, config.hostEthAddr);
+      // Fetch node_last_epoch per peer to capture their tags when possible.
+      await Promise.all(
+        config.chainstorePeers.map(async (peer) => {
+          const ethAddr = deriveEthAddress(peer);
+          if (!ethAddr) return;
+          const record = await fetchNodeLastEpoch(config.oraclesApiUrl as string, ethAddr);
+          if (record) {
+            peerRecords[peer] = record;
+          }
+        })
+      );
     }
 
     const peers = buildPeerList(config.chainstorePeers, config.hostId, config.hostAddr, {
       ...(nodeMap ?? {}),
-      ...(hostRecord ? { [config.hostAddr ?? config.hostId ?? 'host']: hostRecord } : {})
+      ...peerRecords
     });
 
     const geoJson = buildPeerGeo(peers);
