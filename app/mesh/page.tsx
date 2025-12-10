@@ -5,7 +5,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import AppShell from '@/components/layout/AppShell';
 import Card from '@/components/ui/Card';
 import { countryCodeToName } from '@/lib/gis';
-import type { NodeGeoResponse, NodePeer } from '@/lib/api/nodes';
+import type { NodeCountryStat, NodeGeoResponse, NodePeer } from '@/lib/api/nodes';
 import type { FeatureCollection, Point } from 'geojson';
 import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useState } from 'react';
@@ -82,6 +82,7 @@ export default function MeshPage(): JSX.Element {
   const [geoJson, setGeoJson] =
     useState<FeatureCollection<Point, { code: string; count: number; label?: string; address?: string }> | null>(null);
   const [peers, setPeers] = useState<NodePeer[]>([]);
+  const [stats, setStats] = useState<NodeCountryStat[]>([]);
   const [dataSource, setDataSource] = useState<'live' | 'mock'>('mock');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -106,6 +107,7 @@ export default function MeshPage(): JSX.Element {
         const data = payload as NodeGeoResponse;
         setGeoJson(data.geoJson);
         setPeers(data.peers ?? []);
+        setStats(data.stats ?? []);
         setDataSource(data.source ?? 'live');
       } catch (err) {
         if (cancelled) return;
@@ -126,6 +128,10 @@ export default function MeshPage(): JSX.Element {
   const orderedPeers = useMemo(
     () => [...peers].sort((a, b) => a.label.localeCompare(b.label)),
     [peers]
+  );
+  const orderedStats = useMemo(
+    () => [...stats].sort((a, b) => b.count - a.count),
+    [stats]
   );
 
   return (
@@ -207,7 +213,7 @@ export default function MeshPage(): JSX.Element {
           </div>
         </Card>
 
-        <Card title="Peers" description="ChainStore peers and host endpoints surfaced on the mesh map.">
+        <Card title="Nodes by country" description="Aggregated counts from the active node registry.">
           {loading && (
             <p className="text-sm text-slate-300">Loading node registry...</p>
           )}
@@ -219,28 +225,28 @@ export default function MeshPage(): JSX.Element {
               <table className="min-w-full divide-y divide-white/10 text-left">
                 <thead>
                   <tr className="text-xs uppercase tracking-[0.16em] text-slate-400">
-                    <th className="px-3 py-2 font-semibold">Label</th>
-                    <th className="px-3 py-2 font-semibold">Address</th>
-                    <th className="px-3 py-2 font-semibold">Role</th>
-                    <th className="px-3 py-2 font-semibold text-right">Coords</th>
+                    <th className="px-3 py-2 font-semibold">Location</th>
+                    <th className="px-3 py-2 font-semibold">Total nodes</th>
+                    <th className="px-3 py-2 font-semibold">Data center</th>
+                    <th className="px-3 py-2 font-semibold text-right">KYC/KYB</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/10">
-                  {orderedPeers.length === 0 && (
+                  {orderedStats.length === 0 && (
                     <tr>
                       <td colSpan={4} className="px-3 py-3 text-sm text-slate-300">
-                        No peers reported.
+                        No nodes reported.
                       </td>
                     </tr>
                   )}
-                  {orderedPeers.map((entry) => (
-                    <tr key={entry.id} className="text-sm text-slate-200">
-                      <td className="px-3 py-3 font-semibold text-slate-100">{entry.label}</td>
-                      <td className="px-3 py-3 text-slate-300">{entry.address}</td>
-                      <td className="px-3 py-3 text-slate-300">{entry.kind}</td>
-                      <td className="px-3 py-3 text-right text-slate-300">
-                        {entry.lat.toFixed(2)}, {entry.lng.toFixed(2)}
+                  {orderedStats.map((entry) => (
+                    <tr key={entry.code} className="text-sm text-slate-200">
+                      <td className="px-3 py-3 font-semibold text-slate-100">
+                        {countryCodeToName(entry.code) ?? entry.code}
                       </td>
+                      <td className="px-3 py-3 text-slate-300">{entry.count}</td>
+                      <td className="px-3 py-3 text-slate-300">{entry.datacenterCount}</td>
+                      <td className="px-3 py-3 text-right text-slate-300">{entry.kybCount}</td>
                     </tr>
                   ))}
                 </tbody>

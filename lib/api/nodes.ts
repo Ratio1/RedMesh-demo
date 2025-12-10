@@ -158,19 +158,23 @@ export async function getNodeGeoData(): Promise<NodeGeoResponse> {
   ];
 
   if (!config.oraclesApiUrl) {
-    const stats = peers.length ? [{ code: 'PEERS', count: peers.length, datacenterCount: 0, kybCount: 0 }] : MOCK_STATS;
-    return { stats, geoJson: buildPeerGeo(peers.length ? peers : MOCK_STATS.map((s) => ({
-      id: `mock-${s.code}`,
-      label: s.code,
-      address: s.code,
-      kind: 'peer' as const,
-      ...pseudoCoordinates(s.code)
-    }))), source: 'mock', peers };
+    return {
+      stats: MOCK_STATS,
+      geoJson: buildPeerGeo(peers.length ? peers : MOCK_STATS.map((s) => ({
+        id: `mock-${s.code}`,
+        label: s.code,
+        address: s.code,
+        kind: 'peer' as const,
+        ...pseudoCoordinates(s.code)
+      }))),
+      source: 'mock',
+      peers
+    };
   }
 
   try {
     const stats = await fetchActiveNodeStats(config.oraclesApiUrl);
-    const geoJson = buildGeoJson(stats);
+    const geoJson = buildPeerGeo(peers);
     return { stats, geoJson, source: 'live', peers };
   } catch (error) {
     // Fall back to mock data when live retrieval fails so the UI still renders.
