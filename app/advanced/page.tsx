@@ -44,7 +44,7 @@ export default function AdvancedPage(): JSX.Element {
           actions={
             config?.swaggerUrl ? (
               <Link
-                href={config.swaggerUrl}
+                href="/api/redmesh-docs"
                 target="_blank"
                 className="inline-flex h-10 items-center justify-center rounded-full bg-brand-primary px-5 text-sm font-medium text-white shadow-lg shadow-brand-primary/25 transition hover:bg-[#b30025]"
               >
