@@ -12,8 +12,18 @@ export interface NodeCountryStat {
 
 export interface NodeGeoResponse {
   stats: NodeCountryStat[];
-  geoJson: FeatureCollection<Point, { code: string; count: number }>;
+  geoJson: FeatureCollection<Point, { code: string; count: number; label?: string; address?: string }>;
   source: 'live' | 'mock';
+  peers: NodePeer[];
+}
+
+export interface NodePeer {
+  id: string;
+  label: string;
+  address: string;
+  kind: 'host' | 'peer';
+  lat: number;
+  lng: number;
 }
 
 const MOCK_STATS: NodeCountryStat[] = [
@@ -31,6 +41,47 @@ const MOCK_STATS: NodeCountryStat[] = [
 
 function buildGeoJson(stats: NodeCountryStat[]): FeatureCollection<Point, { code: string; count: number }> {
   return countryCountsToGeoJSON(stats.map(({ code, count }) => ({ code, count })));
+}
+
+function pseudoCoordinates(seed: string): { lat: number; lng: number } {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash << 5) - hash + seed.charCodeAt(i);
+    hash |= 0; // force 32-bit
+  }
+
+  const normalized = (value: number, min: number, max: number) => {
+    const range = max - min;
+    const scaled = ((value % 10000) + 10000) % 10000; // 0..9999
+    return min + (scaled / 9999) * range;
+  };
+
+  return {
+    lat: normalized(hash, -55, 70),
+    lng: normalized(hash * 3, -170, 175)
+  };
+}
+
+function buildPeerGeo(peers: NodePeer[]): FeatureCollection<
+  Point,
+  { code: string; count: number; label: string; address: string }
+> {
+  return {
+    type: 'FeatureCollection',
+    features: peers.map((peer) => ({
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [peer.lng, peer.lat]
+      },
+      properties: {
+        code: peer.kind === 'host' ? 'HOST' : 'PEER',
+        count: 1,
+        label: peer.label,
+        address: peer.address
+      }
+    }))
+  };
 }
 
 function deriveCountryCode(tags?: unknown): string {
@@ -85,17 +136,45 @@ async function fetchActiveNodeStats(oraclesApiUrl: string): Promise<NodeCountryS
 export async function getNodeGeoData(): Promise<NodeGeoResponse> {
   const config = getAppConfig();
 
+  const peers: NodePeer[] = [
+    ...(config.hostAddr || config.hostId
+      ? [
+          {
+            id: config.hostId ?? config.hostAddr ?? 'host',
+            label: config.hostId ?? 'Host',
+            address: config.hostAddr ?? 'unknown',
+            kind: 'host' as const,
+            ...pseudoCoordinates(config.hostAddr ?? config.hostId ?? 'host')
+          }
+        ]
+      : []),
+    ...config.chainstorePeers.map((peer) => ({
+      id: peer,
+      label: peer,
+      address: peer,
+      kind: 'peer' as const,
+      ...pseudoCoordinates(peer)
+    }))
+  ];
+
   if (!config.oraclesApiUrl) {
-    return { stats: MOCK_STATS, geoJson: buildGeoJson(MOCK_STATS), source: 'mock' };
+    const stats = peers.length ? [{ code: 'PEERS', count: peers.length, datacenterCount: 0, kybCount: 0 }] : MOCK_STATS;
+    return { stats, geoJson: buildPeerGeo(peers.length ? peers : MOCK_STATS.map((s) => ({
+      id: `mock-${s.code}`,
+      label: s.code,
+      address: s.code,
+      kind: 'peer' as const,
+      ...pseudoCoordinates(s.code)
+    }))), source: 'mock', peers };
   }
 
   try {
     const stats = await fetchActiveNodeStats(config.oraclesApiUrl);
-    return { stats, geoJson: buildGeoJson(stats), source: 'live' };
+    const geoJson = buildGeoJson(stats);
+    return { stats, geoJson, source: 'live', peers };
   } catch (error) {
     // Fall back to mock data when live retrieval fails so the UI still renders.
     console.error('Failed to load nodes from oracles API:', error);
-    return { stats: MOCK_STATS, geoJson: buildGeoJson(MOCK_STATS), source: 'mock' };
+    return { stats: MOCK_STATS, geoJson: buildPeerGeo(peers.length ? peers : []), source: 'mock', peers };
   }
 }
-

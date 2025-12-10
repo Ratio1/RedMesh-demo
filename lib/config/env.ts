@@ -5,6 +5,7 @@ export interface AppRuntimeConfig {
   chainstorePeers: string[];
   r1fsApiUrl?: string;
   hostId?: string;
+  hostAddr?: string;
   mockMode: boolean;
   environment: 'development' | 'production' | 'test';
   redmeshPassword?: string;
@@ -73,6 +74,7 @@ function resolveConfig(): AppRuntimeConfig {
   const chainstoreApiUrl = normalizeUrl(process.env.EE_CHAINSTORE_API_URL);
   const r1fsApiUrl = normalizeUrl(process.env.EE_R1FS_API_URL);
   const hostId = process.env.EE_HOST_ID?.trim();
+  const hostAddr = process.env.EE_HOST_ADDR?.trim();
   const redmeshPassword = process.env.REDMESH_PASSWORD?.trim();
   const adminUsername = (process.env.ADMIN_USERNAME ?? 'admin').trim();
   const adminPassword = (process.env.ADMIN_PASSWORD ?? 'admin123').trim();
@@ -113,6 +115,7 @@ function resolveConfig(): AppRuntimeConfig {
     chainstorePeers,
     r1fsApiUrl,
     hostId,
+    hostAddr,
     mockMode: missingCritical,
     environment: (process.env.NODE_ENV as AppRuntimeConfig['environment']) || 'development',
     redmeshPassword,

@@ -5,7 +5,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import AppShell from '@/components/layout/AppShell';
 import Card from '@/components/ui/Card';
 import { countryCodeToName } from '@/lib/gis';
-import type { NodeCountryStat, NodeGeoResponse } from '@/lib/api/nodes';
+import type { NodeGeoResponse, NodePeer } from '@/lib/api/nodes';
 import type { FeatureCollection, Point } from 'geojson';
 import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useState } from 'react';
@@ -80,8 +80,8 @@ type HoverInfo = { location: string; count: number; x: number; y: number };
 
 export default function MeshPage(): JSX.Element {
   const [geoJson, setGeoJson] =
-    useState<FeatureCollection<Point, { code: string; count: number }> | null>(null);
-  const [stats, setStats] = useState<NodeCountryStat[]>([]);
+    useState<FeatureCollection<Point, { code: string; count: number; label?: string; address?: string }> | null>(null);
+  const [peers, setPeers] = useState<NodePeer[]>([]);
   const [dataSource, setDataSource] = useState<'live' | 'mock'>('mock');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -105,7 +105,7 @@ export default function MeshPage(): JSX.Element {
         if (cancelled) return;
         const data = payload as NodeGeoResponse;
         setGeoJson(data.geoJson);
-        setStats(data.stats ?? []);
+        setPeers(data.peers ?? []);
         setDataSource(data.source ?? 'live');
       } catch (err) {
         if (cancelled) return;
@@ -123,9 +123,9 @@ export default function MeshPage(): JSX.Element {
     };
   }, []);
 
-  const orderedStats = useMemo(
-    () => [...stats].sort((a, b) => b.count - a.count),
-    [stats]
+  const orderedPeers = useMemo(
+    () => [...peers].sort((a, b) => a.label.localeCompare(b.label)),
+    [peers]
   );
 
   return (
@@ -163,8 +163,8 @@ export default function MeshPage(): JSX.Element {
                   const feature = event.features?.[0];
                   if (feature) {
                     const properties = feature.properties as Record<string, unknown>;
-                    const code = String(properties.code ?? '??');
-                    const location = countryCodeToName(code) ?? code;
+                    const label = String(properties.label ?? 'Unknown node');
+                    const location = properties.code ? countryCodeToName(String(properties.code)) ?? String(properties.code) : label;
                     setHoverInfo({
                       location,
                       count: Number(properties.count ?? 0),
@@ -207,7 +207,7 @@ export default function MeshPage(): JSX.Element {
           </div>
         </Card>
 
-        <Card title="Nodes by country" description="Aggregated counts from the active node registry.">
+        <Card title="Peers" description="ChainStore peers and host endpoints surfaced on the mesh map.">
           {loading && (
             <p className="text-sm text-slate-300">Loading node registry...</p>
           )}
@@ -219,28 +219,28 @@ export default function MeshPage(): JSX.Element {
               <table className="min-w-full divide-y divide-white/10 text-left">
                 <thead>
                   <tr className="text-xs uppercase tracking-[0.16em] text-slate-400">
-                    <th className="px-3 py-2 font-semibold">Location</th>
-                    <th className="px-3 py-2 font-semibold">Total nodes</th>
-                    <th className="px-3 py-2 font-semibold">Data center</th>
-                    <th className="px-3 py-2 font-semibold text-right">KYB</th>
+                    <th className="px-3 py-2 font-semibold">Label</th>
+                    <th className="px-3 py-2 font-semibold">Address</th>
+                    <th className="px-3 py-2 font-semibold">Role</th>
+                    <th className="px-3 py-2 font-semibold text-right">Coords</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/10">
-                  {orderedStats.length === 0 && (
+                  {orderedPeers.length === 0 && (
                     <tr>
                       <td colSpan={4} className="px-3 py-3 text-sm text-slate-300">
-                        No nodes reported.
+                        No peers reported.
                       </td>
                     </tr>
                   )}
-                  {orderedStats.map((entry) => (
-                    <tr key={entry.code} className="text-sm text-slate-200">
-                      <td className="px-3 py-3 font-semibold text-slate-100">
-                        {countryCodeToName(entry.code) ?? entry.code}
+                  {orderedPeers.map((entry) => (
+                    <tr key={entry.id} className="text-sm text-slate-200">
+                      <td className="px-3 py-3 font-semibold text-slate-100">{entry.label}</td>
+                      <td className="px-3 py-3 text-slate-300">{entry.address}</td>
+                      <td className="px-3 py-3 text-slate-300">{entry.kind}</td>
+                      <td className="px-3 py-3 text-right text-slate-300">
+                        {entry.lat.toFixed(2)}, {entry.lng.toFixed(2)}
                       </td>
-                      <td className="px-3 py-3 text-slate-300">{entry.count}</td>
-                      <td className="px-3 py-3 text-slate-300">{entry.datacenterCount}</td>
-                      <td className="px-3 py-3 text-right text-slate-300">{entry.kybCount}</td>
                     </tr>
                   ))}
                 </tbody>
