@@ -61,11 +61,23 @@ function parsePeerList(raw?: string | null): string[] {
   }
 }
 
-function resolveConfig(): AppRuntimeConfig {
-  // Prefer worker-provided EE_* variables but allow REDMESH_API_URL as a fallback for status checks.
-  const redmeshApiUrl = normalizeUrl(
+function buildRedmeshApiUrl(): string | undefined {
+  const host = process.env.R1EN_HOST_IP?.trim();
+  const portRaw = process.env.API_PORT?.toString().trim();
+  const port = portRaw ? Number.parseInt(portRaw, 10) : Number.NaN;
+
+  if (host && Number.isInteger(port) && port > 0) {
+    return normalizeUrl(`http://${host}:${port}`);
+  }
+
+  return normalizeUrl(
     process.env.EE_REDMESH_API_URL ?? process.env.REDMESH_API_URL ?? process.env.R1EN_REDMESH_API_URL
   );
+}
+
+function resolveConfig(): AppRuntimeConfig {
+  // Prefer edge host + port to build the RedMesh URL; allow legacy variables as fallbacks.
+  const redmeshApiUrl = buildRedmeshApiUrl();
   const oraclesApiUrl = normalizeUrl(
     process.env.EE_ORACLES_API_URL ??
       process.env.ORACLES_API_URL ??

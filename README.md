@@ -22,7 +22,8 @@ See `UPDATE.md` (to be renamed to `TODO.md`) for the current refactor/review pla
 ## Getting Started
 1. `npm install`
 2. Create `.env.local` (empty values keep mock mode enabled):
-   - `R1EN_REDMESH_API_URL`
+   - `R1EN_HOST_IP`
+   - `API_PORT`
    - `R1EN_CHAINSTORE_API_URL`
    - `R1EN_CHAINSTORE_PEERS`
    - `R1EN_R1FS_API_URL`
@@ -41,7 +42,7 @@ See `UPDATE.md` (to be renamed to `TODO.md`) for the current refactor/review pla
 Unit and integration tests live in `__tests__/` and default to mock mode; no live services are required. Every feature (auth, job creation, job timelines, config API) should include happy-path and failure-path coverage. Extend `lib/api/mockData.ts` when adding scenarios so offline testing matches the structure of the RedMesh FastAPI responses.
 
 ## Deployment Notes
-Worker App Runner deployments must inject every `R1EN_*` variable. Missing values leave the console in mock mode and display a warning badge in the header. Secrets should only be accessed through `lib/config/env.ts`; avoid touching `process.env` directly in components. The Advanced page surfaces the current Swagger endpoint so operators can validate the RedMesh FastAPI instance shipped with the Edge Node.
+Worker App Runner deployments must inject every `R1EN_*` variable plus `API_PORT`. Missing values leave the console in mock mode and display a warning badge in the header. Secrets should only be accessed through `lib/config/env.ts`; avoid touching `process.env` directly in components. The Advanced page surfaces the current Swagger endpoint so operators can validate the RedMesh FastAPI instance shipped with the Edge Node.
 
 ## Related Projects
 - RedMesh API framework – https://github.com/Ratio1/edge_node/tree/develop/extensions/business/cybersec/red_mesh

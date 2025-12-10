@@ -60,12 +60,13 @@ export default function AdvancedPage(): JSX.Element {
           <p className="text-sm leading-relaxed text-slate-200">
             The Swagger UI is published by the RedMesh API on the edge node. Access requires network
             proximity or tunnelling provided by the Ratio1 Worker App Runner. Environment variable
-            <code className="mx-1 rounded bg-white/10 px-2 py-0.5 text-xs text-slate-100">EE_REDMESH_API_URL</code> must be set.
+            <code className="mx-1 rounded bg-white/10 px-2 py-0.5 text-xs text-slate-100">R1EN_HOST_IP</code> together with
+            <code className="mx-1 rounded bg-white/10 px-2 py-0.5 text-xs text-slate-100">API_PORT</code> must be set.
           </p>
           {!config?.swaggerUrl && (
             <p className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/15 px-4 py-3 text-sm text-amber-100">
               Swagger endpoint is not configured. Confirm the RedMesh API URL is accessible and the worker
-              exported <code>EE_REDMESH_API_URL</code>.
+              exported <code>R1EN_HOST_IP</code> and <code>API_PORT</code>.
             </p>
           )}
         </Card>
@@ -77,7 +78,9 @@ export default function AdvancedPage(): JSX.Element {
             <li>
               <strong className="text-slate-100">RedMesh API</strong>
               <div className="text-xs text-slate-400">
-                {config?.redmeshApiConfigured ? 'Configured via EE_REDMESH_API_URL' : 'Not detected'}
+                {config?.redmeshApiConfigured
+                  ? 'Configured via R1EN_HOST_IP + API_PORT'
+                  : 'Not detected'}
               </div>
             </li>
             <li>

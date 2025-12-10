@@ -1,3 +1,4 @@
+.idea
 # Nestjs specific
 /dist
 /node_modules
