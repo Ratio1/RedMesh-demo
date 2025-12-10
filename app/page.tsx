@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import LoginForm from '@/components/auth/LoginForm';
 import { useAuth } from '@/components/auth/AuthContext';
 import { useAppConfig } from '@/components/layout/AppConfigContext';
+import AppVersionBadge from '@/components/layout/AppVersionBadge';
 
 export default function Home(): JSX.Element {
   const { user, loading } = useAuth();
@@ -28,6 +29,7 @@ export default function Home(): JSX.Element {
         <div className="flex flex-col justify-between space-y-5 pb-2 lg:pb-0">
           <div className="flex items-center gap-3">
             <Image src="/RedMeshLogo.svg" alt="RedMesh" width={192} height={192} priority />
+            <AppVersionBadge />
           </div>
           <h1 className="text-3xl font-bold text-slate-50 sm:text-4xl">
             Sign in to manage RedMesh workloads

@@ -18,6 +18,7 @@ export interface ClientRuntimeConfig {
   forceMockTasks: boolean;
   forceMockAuth: boolean;
   environment: 'development' | 'production' | 'test';
+  appVersion: string;
   swaggerUrl: string | null;
   redmeshApiConfigured: boolean;
   chainstoreApiConfigured: boolean;

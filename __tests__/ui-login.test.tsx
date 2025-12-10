@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import LoginForm from '@/components/auth/LoginForm';
 import Providers from '@/app/providers';
+import { APP_VERSION } from '@/lib/config/version';
 
 const replaceMock = jest.fn();
 
@@ -40,6 +41,7 @@ describe('LoginForm', () => {
               hostId: 'en-01',
               mockMode: true,
               environment: 'development',
+              appVersion: APP_VERSION,
               swaggerUrl: null,
               redmeshApiConfigured: false,
               chainstoreApiConfigured: false,

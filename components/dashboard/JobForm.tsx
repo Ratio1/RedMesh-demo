@@ -28,7 +28,13 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
     config?.featureCatalog && config.featureCatalog.length > 0
       ? config.featureCatalog
       : REDMESH_FEATURE_CATALOG;
-  const maxWorkers = 50;
+  const peersCount = config?.chainstorePeers?.length ?? 0;
+  const computedMaxWorkers = config
+    ? config.mockMode
+      ? 100
+      : Math.max(peersCount, 1)
+    : 100;
+  const maxWorkers = Math.max(computedMaxWorkers, 1);
   const [name, setName] = useState('');
   const [summary, setSummary] = useState('');
   const [target, setTarget] = useState('');
@@ -42,10 +48,10 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
   const [workerCount, setWorkerCount] = useState(2);
   const [priority, setPriority] = useState('medium');
   const [distribution, setDistribution] = useState<JobDistribution>('slice');
-  const [duration, setDuration] = useState<JobDuration>('singlepass');
-  const [tempoMin, setTempoMin] = useState<string>('');
-  const [tempoMax, setTempoMax] = useState<string>('');
-  const [tempoEnabled, setTempoEnabled] = useState<boolean>(false);
+  const [duration, setDuration] = useState<JobDuration>('continuous');
+  const [tempoMin, setTempoMin] = useState<string>('30');
+  const [tempoMax, setTempoMax] = useState<string>('300');
+  const [tempoEnabled, setTempoEnabled] = useState<boolean>(true);
   const [tempoStepsMin, setTempoStepsMin] = useState<string>('');
   const [tempoStepsMax, setTempoStepsMax] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -69,7 +75,7 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
       (parsedTempoStepsMin ?? 0) <= 0 ||
       (parsedTempoStepsMax ?? 0) < (parsedTempoStepsMin ?? 0));
   const workerTrackFill =
-    maxWorkers > 2 ? Math.round(((workerCount - 2) / (maxWorkers - 2)) * 100) : 0;
+    maxWorkers > 1 ? Math.round(((workerCount - 1) / (maxWorkers - 1)) * 100) : 0;
 
   useEffect(() => {
     if (!config?.featureCatalog?.length || featuresTouchedRef.current) {
@@ -91,7 +97,7 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
 
   useEffect(() => {
     setWorkerCount((current) => {
-      if (current < 2) return 2;
+      if (current < 1) return 1;
       if (current > maxWorkers) return maxWorkers;
       return current;
     });
@@ -176,10 +182,10 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
       setWorkerCount(2);
       setPriority('medium');
       setDistribution('slice');
-      setDuration('singlepass');
-      setTempoMin('');
-      setTempoMax('');
-      setTempoEnabled(false);
+      setDuration('continuous');
+      setTempoMin('30');
+      setTempoMax('300');
+      setTempoEnabled(true);
       setTempoStepsMin('');
       setTempoStepsMax('');
 
@@ -369,10 +375,10 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
               <input
                 id="job-workers"
                 type="range"
-                min={2}
+                min={1}
                 max={maxWorkers}
                 value={workerCount}
-                onChange={(event) => setWorkerCount(Number(event.target.value) || 2)}
+                onChange={(event) => setWorkerCount(Number(event.target.value) || 1)}
                 className="w-full cursor-pointer appearance-none focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
                 style={{
                   background: `linear-gradient(90deg, rgba(214,40,40,0.92) 0%, rgba(214,40,40,1) ${workerTrackFill}%, rgba(46,55,72,0.7) ${workerTrackFill}%, rgba(30,41,59,0.6) 100%)`,

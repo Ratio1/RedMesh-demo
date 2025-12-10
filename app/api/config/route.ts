@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getAppConfig, getSwaggerUrl } from '@/lib/config/env';
 import { REDMESH_FEATURE_CATALOG } from '@/lib/domain/features';
 import { getRatioEdgeClient } from '@/lib/services/edgeClient';
+import { APP_VERSION } from '@/lib/config/version';
 
 export async function GET() {
   const config = getAppConfig();
@@ -39,6 +40,7 @@ export async function GET() {
     forceMockAuth: config.forceMockAuth,
     forceMockTasks: config.forceMockTasks,
     environment: config.environment,
+    appVersion: APP_VERSION,
     swaggerUrl: getSwaggerUrl() ?? null,
     redmeshApiConfigured: Boolean(config.redmeshApiUrl),
     chainstoreApiConfigured: Boolean(config.chainstoreApiUrl),

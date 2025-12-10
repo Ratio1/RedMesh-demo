@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import JobForm from '@/components/dashboard/JobForm';
 import Providers from '@/app/providers';
+import { APP_VERSION } from '@/lib/config/version';
 
 const session = {
   user: {
@@ -45,6 +46,7 @@ describe('JobForm', () => {
               hostId: 'en-01',
               mockMode: true,
               environment: 'development',
+              appVersion: APP_VERSION,
               swaggerUrl: null,
               redmeshApiConfigured: false,
               chainstoreApiConfigured: false,

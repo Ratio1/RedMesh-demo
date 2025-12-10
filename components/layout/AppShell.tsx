@@ -7,10 +7,10 @@ import { PropsWithChildren, useState } from 'react';
 import { useAuth } from '@/components/auth/AuthContext';
 import { useAppConfig } from '@/components/layout/AppConfigContext';
 import Button from '@/components/ui/Button';
-import Badge from '@/components/ui/Badge';
 import ProfileMenu from '@/components/layout/ProfileMenu';
 import clsx from 'clsx';
 import ServedByIndicator from '@/components/layout/ServedByIndicator';
+import AppVersionBadge from '@/components/layout/AppVersionBadge';
 
 const navItems = [
   { href: '/dashboard', label: 'Tasks' },
@@ -57,11 +57,14 @@ export default function AppShell({ children }: PropsWithChildren<{}>): JSX.Eleme
               <Image src="/RedMeshLogo.svg" alt="RedMesh" width={120} height={120} priority />
               <span className="sr-only">RedMesh Dashboard</span>
             </Link>
-            {config?.environment && (
-              <span className="hidden items-center rounded-full border border-brand-primary/40 bg-brand-primary/10 px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.18em] text-brand-primary sm:inline-flex">
-                Env: {config.environment}
-              </span>
-            )}
+            <div className="hidden items-center gap-2 sm:flex">
+              {config?.environment && (
+                <span className="items-center rounded-full border border-brand-primary/40 bg-brand-primary/10 px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.18em] text-brand-primary">
+                  Env: {config.environment}
+                </span>
+              )}
+              <AppVersionBadge subtle />
+            </div>
           </div>
           <nav className="hidden items-center gap-2 sm:flex">
             {navItems.map((item) => (
@@ -153,6 +156,7 @@ export default function AppShell({ children }: PropsWithChildren<{}>): JSX.Eleme
                   Env: {config.environment}
                 </div>
               )}
+              <AppVersionBadge className="justify-center" subtle />
               {user && (
                 <div className="flex items-center justify-between rounded-lg border border-white/10 bg-slate-900/60 px-3 py-2">
                   <div className="text-left">
@@ -195,7 +199,9 @@ export default function AppShell({ children }: PropsWithChildren<{}>): JSX.Eleme
               </ul>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3 text-slate-500"></div>
+          <div className="flex flex-wrap items-center gap-3 text-slate-500">
+            <AppVersionBadge />
+          </div>
           <div className="flex flex-wrap items-center gap-3">
             <p className="text-slate-500">© 2025 Ratio1 RedMesh</p>
             <ServedByIndicator className="rounded-full border border-white/15 bg-slate-900/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-200" />

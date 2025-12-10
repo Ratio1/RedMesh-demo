@@ -2,6 +2,7 @@
 
 import { GET } from '@/app/api/config/route';
 import { resetAppConfigCache } from '@/lib/config/env';
+import { APP_VERSION } from '@/lib/config/version';
 
 jest.mock('@ratio1/edge-sdk-ts', () => {
   const mockClient = {
@@ -49,6 +50,7 @@ describe('config API route', () => {
     expect(payload.mockMode).toBe(true);
     expect(payload.cstoreStatus).toEqual({ mode: 'mock' });
     expect(payload.r1fsStatus).toEqual({ mode: 'mock' });
+    expect(payload.appVersion).toBe(APP_VERSION);
   });
 
   it('reports live mode when env vars are present', async () => {
