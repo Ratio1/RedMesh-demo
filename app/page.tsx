@@ -34,7 +34,7 @@ export default function Home(): JSX.Element {
           </h1>
           <p className="text-sm leading-relaxed text-slate-300">
             Authenticate with your RedMesh Demo credentials to inspect tasks, schedule new deployments, and
-            check the Ratio1 Edge Node {config?.hostId ? `(${config.hostId})` : ''} RedMesh state.
+            check the Ratio1 RedMesh state.
           </p>
           <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4 text-xs text-slate-300 lg:self-end">
             <p className="font-semibold text-slate-100">Runtime checks</p>

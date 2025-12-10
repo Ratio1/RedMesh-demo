@@ -115,23 +115,7 @@ async function fetchActiveNodeStats(oraclesApiUrl: string): Promise<NodeCountryS
     throw new ApiError(500, 'Node registry payload is malformed.');
   }
 
-  const grouped: Record<string, NodeCountryStat> = {};
-
-  Object.values(nodes as Record<string, any>).forEach((node) => {
-    const code = deriveCountryCode(node?.tags);
-    if (!grouped[code]) {
-      grouped[code] = { code, count: 0, datacenterCount: 0, kybCount: 0 };
-    }
-    grouped[code].count += 1;
-    if (hasTagPrefix(node?.tags, 'DC:')) {
-      grouped[code].datacenterCount += 1;
-    }
-    if (hasTag(node?.tags, 'KYB')) {
-      grouped[code].kybCount += 1;
-    }
-  });
-
-  return Object.values(grouped).sort((a, b) => b.count - a.count);
+  return computeStatsFromNodes(nodes as Record<string, any>);
 }
 
 function resolveCountry(tags?: unknown): string | null {
@@ -172,19 +156,29 @@ function buildPeerList(
     });
   }
 
-  peers.forEach((peer) => {
-    const nodeRecord = nodeMap?.[peer];
-    const coords = locatePeer(peer, nodeRecord);
-    entries.push({
-      id: peer,
-      label: peer,
-      address: peer,
-      kind: 'peer',
-      ...coords
-    });
-  });
+  // For this view we only care about the local host; ignore other peers on the map.
 
   return entries;
+}
+
+function computeStatsFromNodes(nodes: Record<string, any>): NodeCountryStat[] {
+  const grouped: Record<string, NodeCountryStat> = {};
+
+  Object.values(nodes).forEach((node) => {
+    const code = deriveCountryCode(node?.tags);
+    if (!grouped[code]) {
+      grouped[code] = { code, count: 0, datacenterCount: 0, kybCount: 0 };
+    }
+    grouped[code].count += 1;
+    if (hasTagPrefix(node?.tags, 'DC:')) {
+      grouped[code].datacenterCount += 1;
+    }
+    if (hasTag(node?.tags, 'KYB')) {
+      grouped[code].kybCount += 1;
+    }
+  });
+
+  return Object.values(grouped).sort((a, b) => b.count - a.count);
 }
 
 export async function getNodeGeoData(): Promise<NodeGeoResponse> {
@@ -193,6 +187,7 @@ export async function getNodeGeoData(): Promise<NodeGeoResponse> {
   try {
     // Build node map from oracles payload when available to enrich peer coordinates.
     let nodeMap: Record<string, any> | undefined;
+    let stats: NodeCountryStat[] = MOCK_STATS;
 
     if (config.oraclesApiUrl) {
       const response = await fetch(`${config.oraclesApiUrl}/active_nodes_list?items_per_page=100000&page=1`, {
@@ -203,14 +198,12 @@ export async function getNodeGeoData(): Promise<NodeGeoResponse> {
         const nodes = payload?.result?.nodes;
         if (nodes && typeof nodes === 'object') {
           nodeMap = nodes as Record<string, any>;
+          stats = computeStatsFromNodes(nodeMap);
         }
       }
     }
 
     const peers = buildPeerList(config.chainstorePeers, config.hostId, config.hostAddr, nodeMap);
-    const stats = config.oraclesApiUrl
-      ? await fetchActiveNodeStats(config.oraclesApiUrl)
-      : MOCK_STATS;
     const geoJson = buildPeerGeo(peers.length ? peers : peers);
     return { stats, geoJson, source: config.oraclesApiUrl ? 'live' : 'mock', peers };
   } catch (error) {
