@@ -20,65 +20,68 @@ jobs:
         with:
           fetch-depth: 0
 
-      # 1. Seed Git Tags (Critical for first run or missing tags)
+      # ----------------------------------------------------------------
+      # FIX 1: Seed & Push Tag
+      # We must PUSH the seed tag, otherwise the next run forgets it existed.
+      # ----------------------------------------------------------------
       - name: Seed Git Tag from File
         if: env.VERSION_FILE != ''
-        run: |
-          # Extract version from file (looks for vX.Y.Z or X.Y.Z)
-          FILE_LINE=$(head -n 1 "$VERSION_FILE")
-          DETECTED_VER=$(echo "$FILE_LINE" | grep -oE "v?[0-9]+\.[0-9]+\.[0-9]+")
-          
-          # Add 'v' prefix if missing
-          if [[ "$DETECTED_VER" != v* ]]; then DETECTED_VER="v$DETECTED_VER"; fi
-
-          echo "File version detected: $DETECTED_VER"
-
-          # Check if this tag exists in Git
-          if git rev-parse "$DETECTED_VER" >/dev/null 2>&1; then
-            echo "Tag $DETECTED_VER exists. Ready to calculate next version."
-          else
-            echo "Tag $DETECTED_VER missing. Tagging HEAD~1 to sync git with file."
-            # Tag the previous commit so the current commit counts as 'new'
-            git tag "$DETECTED_VER" HEAD~1 2>/dev/null || git tag "$DETECTED_VER" HEAD
-          fi
-
-      # 2. Calculate Next Version
-      - name: Calculate Next Version
-        id: version
-        uses: paulhatch/semantic-version@v5.4.0
-        with:
-          tag_prefix: "v"
-          # MAJOR: "feat!" or "BREAKING CHANGE"
-          major_pattern: "(feat!|BREAKING CHANGE)"
-          # MINOR: "feat" or "fix!"
-          minor_pattern: "(feat|fix!)"
-          # PATCH: Defaults to patch if no major/minor patterns found.
-          version_format: "${major}.${minor}.${patch}"
-
-      # 3. Update Version File
-      - name: Update Version File
-        if: steps.version.outputs.version_created == 'true' && env.VERSION_FILE != ''
-        run: |
-          NEW_VERSION="${{ steps.version.outputs.version_tag }}"
-          
-          echo "Updating $VERSION_FILE to $NEW_VERSION"
-          
-          # Replace version in the first line
-          sed -E -i "1s/(['\"])v?[0-9]+\.[0-9]+\.[0-9]+(['\"])/\1$NEW_VERSION\2/" "$VERSION_FILE"
-          
-          echo "Updated Line: $(head -n 1 "$VERSION_FILE")"
-
-      # 4. Commit and Push
-      - name: Commit & Push Changes
-        if: steps.version.outputs.version_created == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+          # Extract version (e.g., v1.0.2)
+          FILE_LINE=$(head -n 1 "$VERSION_FILE")
+          DETECTED_VER=$(echo "$FILE_LINE" | grep -oE "v?[0-9]+\.[0-9]+\.[0-9]+")
+          if [[ "$DETECTED_VER" != v* ]]; then DETECTED_VER="v$DETECTED_VER"; fi
+
+          echo "File version detected: $DETECTED_VER"
+
+          if git rev-parse "$DETECTED_VER" >/dev/null 2>&1; then
+            echo "Tag $DETECTED_VER exists. All good."
+          else
+            echo "Tag $DETECTED_VER missing. Creating and PUSHING it."
+            # Tag HEAD~1 (previous commit) so the current commit counts as a change
+            git tag "$DETECTED_VER" HEAD~1 2>/dev/null || git tag "$DETECTED_VER" HEAD
+            git push origin "$DETECTED_VER"
+          fi
+
+      - name: Calculate Next Version
+        id: version
+        uses: paulhatch/semantic-version@v5.4.0
+        with:
+          tag_prefix: "v"
+          major_pattern: "(feat!|BREAKING CHANGE)"
+          minor_pattern: "(feat|fix!)"
+          version_format: "${major}.${minor}.${patch}"
+
+      # ----------------------------------------------------------------
+      # FIX 2: Use 'changed' instead of 'version_created'
+      # ----------------------------------------------------------------
+      - name: Update Version File
+        id: update_file
+        # v5 uses 'changed', not 'version_created'
+        if: steps.version.outputs.changed == 'true' && env.VERSION_FILE != ''
+        run: |
+          NEW_VERSION="${{ steps.version.outputs.version_tag }}"
+          echo "Updating $VERSION_FILE to $NEW_VERSION"
+          sed -E -i "1s/(['\"])v?[0-9]+\.[0-9]+\.[0-9]+(['\"])/\1$NEW_VERSION\2/" "$VERSION_FILE"
+          echo "Updated Line: $(head -n 1 "$VERSION_FILE")"
+
+      - name: Commit & Push Changes
+        if: steps.version.outputs.changed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Only commit if the file actually changed
           if [[ -n "$(git status --porcelain)" ]]; then
             git add "$VERSION_FILE"
+            # [skip ci] prevents the infinite loop
             git commit -m "chore(release): bump version to ${{ steps.version.outputs.version_tag }} [skip ci]"
             git push origin HEAD:main
           fi
