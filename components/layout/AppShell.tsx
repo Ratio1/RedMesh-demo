@@ -11,6 +11,7 @@ import ProfileMenu from '@/components/layout/ProfileMenu';
 import clsx from 'clsx';
 import ServedByIndicator from '@/components/layout/ServedByIndicator';
 import AppVersionBadge from '@/components/layout/AppVersionBadge';
+import { APP_VERSION } from '@/lib/config/version';
 
 const navItems = [
   { href: '/dashboard', label: 'Tasks' },
@@ -37,6 +38,7 @@ export default function AppShell({ children }: PropsWithChildren<{}>): JSX.Eleme
   const { config } = useAppConfig();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const appVersion = config?.appVersion ?? APP_VERSION;
 
   const displayName = user?.displayName ?? user?.username ?? 'Signed out';
   const roleLabel = user ? user.roles.join(', ') || 'No roles' : 'Signed out';
@@ -58,12 +60,13 @@ export default function AppShell({ children }: PropsWithChildren<{}>): JSX.Eleme
               <span className="sr-only">RedMesh Dashboard</span>
             </Link>
             <div className="hidden items-center gap-2 sm:flex">
-              {config?.environment && (
+              {config?.environment ? (
                 <span className="items-center rounded-full border border-brand-primary/40 bg-brand-primary/10 px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.18em] text-brand-primary">
-                  Env: {config.environment}
+                  Env: {config.environment} | <span className="normal-case text-white">{appVersion}</span>
                 </span>
+              ) : (
+                <AppVersionBadge subtle />
               )}
-              <AppVersionBadge subtle />
             </div>
           </div>
           <nav className="hidden items-center gap-2 sm:flex">
@@ -151,12 +154,13 @@ export default function AppShell({ children }: PropsWithChildren<{}>): JSX.Eleme
                   {item.label}
                 </Link>
               ))}
-              {config?.environment && (
+              {config?.environment ? (
                 <div className="rounded-lg border border-white/10 bg-slate-900/60 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-brand-primary">
-                  Env: {config.environment}
+                  Env: {config.environment} | <span className="normal-case text-white">{appVersion}</span>
                 </div>
+              ) : (
+                <AppVersionBadge className="justify-center" subtle />
               )}
-              <AppVersionBadge className="justify-center" subtle />
               {user && (
                 <div className="flex items-center justify-between rounded-lg border border-white/10 bg-slate-900/60 px-3 py-2">
                   <div className="text-left">

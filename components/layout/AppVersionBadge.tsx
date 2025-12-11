@@ -23,10 +23,9 @@ export default function AppVersionBadge({
         subtle ? 'tracking-[0.18em]' : 'tracking-[0.14em]',
         className
       )}
-      aria-label={`Version ${version}`}
+      aria-label={`App version ${version}`}
     >
-      <span className="text-slate-400">Version</span>
-      <span className="text-slate-100">{version}</span>
+      {version}
     </span>
   );
 }
