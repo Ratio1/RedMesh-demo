@@ -5,8 +5,12 @@ on:
     branches:
       - main
 
+# -----------------------------------------------------------------
+# PERMISSIONS (CRITICAL FIX)
+# -----------------------------------------------------------------
 permissions:
-  contents: write
+  contents: write  # To push tags and commits
+  workflows: write # To push tags on commits that changed workflow files
 
 env:
   VERSION_FILE: "./lib/config/version.ts"
@@ -21,8 +25,7 @@ jobs:
           fetch-depth: 0
 
       # ----------------------------------------------------------------
-      # FIX 1: Seed & Push Tag
-      # We must PUSH the seed tag, otherwise the next run forgets it existed.
+      # 1. Seed & Push Tag (Fixes "Missing Tag" errors)
       # ----------------------------------------------------------------
       - name: Seed Git Tag from File
         if: env.VERSION_FILE != ''
@@ -32,22 +35,29 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Extract version (e.g., v1.0.2)
+          # Extract version from file (e.g. v1.0.2)
           FILE_LINE=$(head -n 1 "$VERSION_FILE")
           DETECTED_VER=$(echo "$FILE_LINE" | grep -oE "v?[0-9]+\.[0-9]+\.[0-9]+")
+          
+          # Ensure 'v' prefix
           if [[ "$DETECTED_VER" != v* ]]; then DETECTED_VER="v$DETECTED_VER"; fi
 
           echo "File version detected: $DETECTED_VER"
 
+          # Check if tag exists. If not, create and PUSH it.
           if git rev-parse "$DETECTED_VER" >/dev/null 2>&1; then
-            echo "Tag $DETECTED_VER exists. All good."
+            echo "Tag $DETECTED_VER exists. Ready."
           else
             echo "Tag $DETECTED_VER missing. Creating and PUSHING it."
-            # Tag HEAD~1 (previous commit) so the current commit counts as a change
+            # Tag HEAD~1 (previous commit) so the current commit counts as a new change
+            # Fallback to HEAD if this is the very first commit
             git tag "$DETECTED_VER" HEAD~1 2>/dev/null || git tag "$DETECTED_VER" HEAD
             git push origin "$DETECTED_VER"
           fi
 
+      # ----------------------------------------------------------------
+      # 2. Calculate Next Version
+      # ----------------------------------------------------------------
       - name: Calculate Next Version
         id: version
         uses: paulhatch/semantic-version@v5.4.0
@@ -56,18 +66,23 @@ jobs:
           major_pattern: "(feat!|BREAKING CHANGE)"
           minor_pattern: "(feat|fix!)"
           version_format: "${major}.${minor}.${patch}"
+          # Note: No 'patch_pattern' needed. 
+          # Anything not matching major/minor is automatically a patch.
 
       # ----------------------------------------------------------------
-      # FIX 2: Use 'changed' instead of 'version_created'
+      # 3. Update File & Commit
       # ----------------------------------------------------------------
       - name: Update Version File
         id: update_file
-        # v5 uses 'changed', not 'version_created'
+        # CRITICAL: v5 uses 'changed' (boolean string), not 'version_created'
         if: steps.version.outputs.changed == 'true' && env.VERSION_FILE != ''
         run: |
           NEW_VERSION="${{ steps.version.outputs.version_tag }}"
           echo "Updating $VERSION_FILE to $NEW_VERSION"
+          
+          # Replace version in the first line
           sed -E -i "1s/(['\"])v?[0-9]+\.[0-9]+\.[0-9]+(['\"])/\1$NEW_VERSION\2/" "$VERSION_FILE"
+          
           echo "Updated Line: $(head -n 1 "$VERSION_FILE")"
 
       - name: Commit & Push Changes
