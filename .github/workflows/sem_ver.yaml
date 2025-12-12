@@ -2,109 +2,139 @@ name: Semantic Versioning
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
 
-# -----------------------------------------------------------------
-# PERMISSIONS (CRITICAL FIX)
-# -----------------------------------------------------------------
 permissions:
-  contents: write  # To push tags and commits
-  workflows: write # To push tags on commits that changed workflow files
+  contents: write
+
+concurrency:
+  group: semver-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
-  VERSION_FILE: "./lib/config/version.ts"
+  VERSION_FILE: lib/config/version.ts
 
 jobs:
   release:
+    # Extra safety: don't run on the bot's own version bump commits (even though [skip ci] should skip already)
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0  # fetch all history + tags 
 
-      # ----------------------------------------------------------------
-      # 1. Seed & Push Tag (Fixes "Missing Tag" errors)
-      # ----------------------------------------------------------------
-      - name: Seed Git Tag from File
-        if: env.VERSION_FILE != ''
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Configure git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Extract version from file (e.g. v1.0.2)
-          FILE_LINE=$(head -n 1 "$VERSION_FILE")
-          DETECTED_VER=$(echo "$FILE_LINE" | grep -oE "v?[0-9]+\.[0-9]+\.[0-9]+")
-          
-          # Ensure 'v' prefix
-          if [[ "$DETECTED_VER" != v* ]]; then DETECTED_VER="v$DETECTED_VER"; fi
+      - name: Fetch tags
+        run: git fetch --force --tags
 
-          echo "File version detected: $DETECTED_VER"
+      # Bootstrap only when there are no semver tags yet
+      - name: Bootstrap initial tag (only if none exist)
+        id: bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
 
-          # Check if tag exists. If not, create and PUSH it.
-          if git rev-parse "$DETECTED_VER" >/dev/null 2>&1; then
-            echo "Tag $DETECTED_VER exists. Ready."
-          else
-            echo "Tag $DETECTED_VER missing. Creating and PUSHING it."
-            # Tag HEAD~1 (previous commit) so the current commit counts as a new change
-            # Fallback to HEAD if this is the very first commit
-            git tag "$DETECTED_VER" HEAD~1 2>/dev/null || git tag "$DETECTED_VER" HEAD
-            git push origin "$DETECTED_VER"
+          latest="$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1 || true)"
+          if [[ -n "$latest" ]]; then
+            echo "bootstrapped=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
-      # ----------------------------------------------------------------
-      # 2. Calculate Next Version
-      # ----------------------------------------------------------------
-      - name: Calculate Next Version
-        id: version
+          if [[ ! -f "$VERSION_FILE" ]]; then
+            echo "VERSION_FILE not found: $VERSION_FILE" >&2
+            exit 1
+          fi
+
+          detected="$(grep -oE "v?[0-9]+\.[0-9]+\.[0-9]+" "$VERSION_FILE" | head -n1 || true)"
+          if [[ -z "$detected" ]]; then
+            echo "No semver found in $VERSION_FILE" >&2
+            exit 1
+          fi
+          [[ "$detected" == v* ]] || detected="v$detected"
+
+          echo "No semver tags found. Bootstrapping tag: $detected"
+          git tag -a "$detected" -m "Bootstrap $detected"
+          git push origin "$detected"
+
+          echo "bootstrapped=true" >> "$GITHUB_OUTPUT"
+
+      - name: Calculate next version
+        if: steps.bootstrap.outputs.bootstrapped != 'true'
+        id: semver
         uses: paulhatch/semantic-version@v5.4.0
         with:
           tag_prefix: "v"
-          major_pattern: "(feat!|BREAKING CHANGE)"
-          minor_pattern: "(feat|fix!)"
+          # Conventional Commits defaults (major if !: or BREAKING CHANGE:, minor if feat:) 
+          major_pattern: "/!:|BREAKING CHANGE:/"
+          minor_pattern: "/feat:/"
+          search_commit_body: true
           version_format: "${major}.${minor}.${patch}"
-          # Note: No 'patch_pattern' needed. 
-          # Anything not matching major/minor is automatically a patch.
 
-      # ----------------------------------------------------------------
-      # 3. Update File & Commit
-      # ----------------------------------------------------------------
-      - name: Update Version File
-        id: update_file
-        # CRITICAL: v5 uses 'changed' (boolean string), not 'version_created'
-        if: steps.version.outputs.changed == 'true' && env.VERSION_FILE != ''
+      - name: Guard (do nothing if tag already exists)
+        if: steps.bootstrap.outputs.bootstrapped != 'true'
+        id: guard
+        shell: bash
         run: |
-          NEW_VERSION="${{ steps.version.outputs.version_tag }}"
-          echo "Updating $VERSION_FILE to $NEW_VERSION"
-          
-          # Replace version in the first line
-          sed -E -i "1s/(['\"])v?[0-9]+\.[0-9]+\.[0-9]+(['\"])/\1$NEW_VERSION\2/" "$VERSION_FILE"
-          
-          echo "Updated Line: $(head -n 1 "$VERSION_FILE")"
+          set -euo pipefail
+          tag="${{ steps.semver.outputs.version_tag }}"
+          if git show-ref --tags --verify --quiet "refs/tags/$tag"; then
+            echo "Tag already exists: $tag"
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
 
-      - name: Commit & Push Changes
-        if: steps.version.outputs.changed == 'true'
+      - name: Update version file
+        if: steps.guard.outputs.should_release == 'true'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_TAG: ${{ steps.semver.outputs.version_tag }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          set -euo pipefail
+          python - <<'PY'
+          import os, re
+          from pathlib import Path
 
-          # Only commit if the file actually changed
-          if [[ -n "$(git status --porcelain)" ]]; then
-            git add "$VERSION_FILE"
-            # [skip ci] prevents the infinite loop
-            git commit -m "chore(release): bump version to ${{ steps.version.outputs.version_tag }} [skip ci]"
-            git push origin HEAD:main
+          path = Path(os.environ["VERSION_FILE"])
+          new_tag = os.environ["NEW_TAG"]
+
+          text = path.read_text(encoding="utf-8")
+
+          # Replace the first quoted semver occurrence (supports '1.2.3' or 'v1.2.3')
+          pattern = re.compile(r"(['\"])v?\d+\.\d+\.\d+(['\"])")
+          out, n = pattern.subn(rf"\1{new_tag}\2", text, count=1)
+          if n == 0:
+            raise SystemExit(f"No quoted semver found in {path}")
+          path.write_text(out, encoding="utf-8")
+          print(f"Updated {path} -> {new_tag}")
+          PY
+
+      - name: Commit + tag + push
+        if: steps.guard.outputs.should_release == 'true'
+        run: |
+          set -euo pipefail
+          tag="${{ steps.semver.outputs.version_tag }}"
+
+          git add "$VERSION_FILE"
+          if ! git diff --cached --quiet; then
+            # GitHub supports skipping workflow runs via commit message keywords 
+            git commit -m "chore(release): ${tag} [skip ci]"
           fi
 
-          git tag -a "${{ steps.version.outputs.version_tag }}" -m "Release ${{ steps.version.outputs.version_tag }}"
-          git push origin "${{ steps.version.outputs.version_tag }}"
+          git tag -a "$tag" -m "Release $tag"
+
+          # Push commit (if any) and annotated tags together
+          git push origin HEAD:main --follow-tags
 
       - name: Summary
+        if: steps.bootstrap.outputs.bootstrapped != 'true'
         run: |
-          echo "Previous Version: ${{ steps.version.outputs.previous_version }}"
-          echo "New Version: ${{ steps.version.outputs.version_tag }}"
+          echo "Previous Version: ${{ steps.semver.outputs.previous_version }}"
+          echo "New Tag:          ${{ steps.semver.outputs.version_tag }}"
+          echo "Version Type:     ${{ steps.semver.outputs.version_type }}"
