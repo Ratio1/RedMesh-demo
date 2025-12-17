@@ -19,6 +19,8 @@ export interface LaunchTestRequest {
   monitor_interval?: number;
   scan_min_delay?: number;
   scan_max_delay?: number;
+  task_name?: string;
+  task_description?: string;
 }
 
 // Worker Assignment
@@ -51,6 +53,8 @@ export interface JobSpecs {
   pass_history?: PassHistoryEntry[];
   scan_min_delay: number;
   scan_max_delay: number;
+  task_name?: string;
+  task_description?: string;
 }
 
 // Launch Test Response
@@ -146,6 +150,21 @@ export interface ListFeaturesResponse {
     web_test: string[];
     [category: string]: string[];
   };
+}
+
+// Feature Catalog Item (from get_feature_catalog endpoint)
+export interface FeatureCatalogItem {
+  id: string;
+  label: string;
+  description: string;
+  category: 'service' | 'web';
+  methods: string[];
+}
+
+// Feature Catalog Response
+export interface FeatureCatalogResponse {
+  catalog: FeatureCatalogItem[];
+  all_methods: string[];
 }
 
 // List Jobs Response (for network and local jobs)

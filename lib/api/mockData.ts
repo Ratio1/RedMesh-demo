@@ -8,7 +8,7 @@ import {
   JobWorkerStatus
 } from './types';
 import { ApiError } from './errors';
-import { REDMESH_FEATURE_CATALOG, getDefaultFeatureIds } from '../domain/features';
+import { getDefaultFeatureCatalog, getDefaultFeatureIds } from '../domain/features';
 
 interface MockUserRecord {
   id: string;
@@ -432,5 +432,5 @@ export async function authenticateMockUser(
 }
 
 export function getAvailableFeatures(): string[] {
-  return REDMESH_FEATURE_CATALOG.map((feature) => feature.id);
+  return getDefaultFeatureIds();
 }

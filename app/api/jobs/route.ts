@@ -2,8 +2,11 @@ import { NextResponse } from 'next/server';
 import { fetchJobs, createJob } from '@/lib/api/jobs';
 import { ApiError } from '@/lib/api/errors';
 import { CreateJobInput } from '@/lib/api/types';
+import { jobsLogger } from '@/lib/services/logger';
 
 export async function GET(request: Request) {
+  jobsLogger.debug('GET /api/jobs - Request received');
+
   const authHeader = request.headers.get('authorization') ?? undefined;
   const token = authHeader?.startsWith('Bearer ')
     ? authHeader.slice('Bearer '.length)
@@ -11,8 +14,10 @@ export async function GET(request: Request) {
 
   try {
     const jobs = await fetchJobs(token);
+    jobsLogger.debug(`Fetched ${jobs.length} jobs`);
     return NextResponse.json({ jobs }, { status: 200 });
   } catch (error) {
+    jobsLogger.error('fetchJobs error:', error instanceof Error ? error.message : error);
     if (error instanceof ApiError) {
       return NextResponse.json({ message: error.message }, { status: error.status });
     }
@@ -23,12 +28,15 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  jobsLogger.debug('POST /api/jobs - Request received');
+
   const authHeader = request.headers.get('authorization') ?? undefined;
   const token = authHeader?.startsWith('Bearer ')
     ? authHeader.slice('Bearer '.length)
     : authHeader ?? undefined;
 
   const body = await request.json().catch(() => null);
+  jobsLogger.debug('Request body:', body);
 
   if (!body || typeof body.name !== 'string' || typeof body.summary !== 'string') {
     return NextResponse.json({ message: 'Task name and summary are required.' }, { status: 400 });
@@ -61,68 +69,31 @@ export async function POST(request: Request) {
 
   const duration = body.duration === 'continuous' ? 'continuous' : 'singlepass';
   const distribution = body.distribution === 'mirror' ? 'mirror' : 'slice';
-  const tempoMinRaw =
-    body?.tempo?.minSeconds ?? body?.tempo?.min_seconds ?? body?.tempoMinSeconds ?? body?.tempo_min_seconds;
-  const tempoMaxRaw =
-    body?.tempo?.maxSeconds ?? body?.tempo?.max_seconds ?? body?.tempoMaxSeconds ?? body?.tempo_max_seconds;
-  const tempoMin = tempoMinRaw !== undefined ? Number(tempoMinRaw) : undefined;
-  const tempoMax = tempoMaxRaw !== undefined ? Number(tempoMaxRaw) : undefined;
-  const tempoProvided = tempoMin !== undefined || tempoMax !== undefined;
-  const tempoStepsSingleRawCandidate =
-    body?.tempo?.steps ?? body?.tempoSteps ?? body?.tempo_steps ?? body?.steps;
-  const tempoStepsSingleRaw =
-    tempoStepsSingleRawCandidate !== null && typeof tempoStepsSingleRawCandidate === 'object'
-      ? undefined
-      : tempoStepsSingleRawCandidate;
-  const tempoStepsMinRaw =
-    body?.tempo?.steps?.min ??
-    body?.tempo?.steps?.min_steps ??
-    body?.tempoSteps?.min ??
-    body?.tempoSteps?.min_steps ??
-    body?.tempo_steps?.min ??
-    body?.tempo_steps?.min_steps ??
-    body?.steps?.min ??
-    body?.tempo_steps_min ??
-    body?.steps_min ??
-    tempoStepsSingleRaw;
-  const tempoStepsMaxRaw =
-    body?.tempo?.steps?.max ??
-    body?.tempo?.steps?.max_steps ??
-    body?.tempoSteps?.max ??
-    body?.tempoSteps?.max_steps ??
-    body?.tempo_steps?.max ??
-    body?.tempo_steps?.max_steps ??
-    body?.steps?.max ??
-    body?.tempo_steps_max ??
-    body?.steps_max ??
-    tempoStepsSingleRaw;
-  const tempoStepsMin = tempoStepsMinRaw !== undefined ? Number(tempoStepsMinRaw) : undefined;
-  const tempoStepsMax = tempoStepsMaxRaw !== undefined ? Number(tempoStepsMaxRaw) : undefined;
-  const tempoStepsProvided = tempoStepsMin !== undefined || tempoStepsMax !== undefined;
-  const tempoStepsInvalid =
-    tempoStepsProvided &&
-    (!Number.isInteger(tempoStepsMin) ||
-      !Number.isInteger(tempoStepsMax) ||
-      (tempoStepsMin ?? 0) <= 0 ||
-      (tempoStepsMax ?? 0) < (tempoStepsMin ?? 0));
 
-  if (
-    (duration === 'continuous' && (!tempoMin || !tempoMax)) ||
-    (tempoProvided && (!tempoMin || !tempoMax || tempoMin <= 0 || tempoMax < tempoMin)) ||
-    tempoStepsInvalid
-  ) {
+  // Parse scan delay (dune sand walking) - accepts both scanDelay and tempo for backwards compatibility
+  const scanDelayMinRaw =
+    body?.scanDelay?.minSeconds ?? body?.scanDelay?.min_seconds ??
+    body?.scan_delay?.minSeconds ?? body?.scan_delay?.min_seconds ??
+    body?.tempo?.minSeconds ?? body?.tempo?.min_seconds;
+  const scanDelayMaxRaw =
+    body?.scanDelay?.maxSeconds ?? body?.scanDelay?.max_seconds ??
+    body?.scan_delay?.maxSeconds ?? body?.scan_delay?.max_seconds ??
+    body?.tempo?.maxSeconds ?? body?.tempo?.max_seconds;
+  const scanDelayMin = scanDelayMinRaw !== undefined ? Number(scanDelayMinRaw) : undefined;
+  const scanDelayMax = scanDelayMaxRaw !== undefined ? Number(scanDelayMaxRaw) : undefined;
+  const scanDelayProvided = scanDelayMin !== undefined || scanDelayMax !== undefined;
+
+  if (scanDelayProvided && (!scanDelayMin || !scanDelayMax || scanDelayMin <= 0 || scanDelayMax < scanDelayMin)) {
     return NextResponse.json(
-      {
-        message: tempoStepsInvalid
-          ? 'Tempo steps are invalid. Provide min and max whole numbers (min > 0, max >= min).'
-          : 'Tempo range is invalid. Provide min and max seconds (min > 0, max >= min).'
-      },
+      { message: 'Scan delay values are invalid. Provide min and max seconds (min > 0, max >= min).' },
       { status: 400 }
     );
   }
 
-  const tempo =
-    tempoMin !== undefined && tempoMax !== undefined ? { minSeconds: tempoMin, maxSeconds: tempoMax } : undefined;
+  const scanDelay =
+    scanDelayMin !== undefined && scanDelayMax !== undefined
+      ? { minSeconds: scanDelayMin, maxSeconds: scanDelayMax }
+      : undefined;
 
   const payload: CreateJobInput = {
     name: body.name,
@@ -140,17 +111,17 @@ export async function POST(request: Request) {
     notes: body.notes,
     distribution,
     duration,
-    tempo,
-    tempoSteps:
-      tempoStepsMin !== undefined && tempoStepsMax !== undefined
-        ? { min: tempoStepsMin, max: tempoStepsMax }
-        : undefined
+    scanDelay
   };
+
+  jobsLogger.debug('Calling createJob with payload:', payload);
 
   try {
     const job = await createJob(payload, { authToken: token, owner: body.owner });
+    jobsLogger.debug('Job created successfully:', job);
     return NextResponse.json({ job }, { status: 201 });
   } catch (error) {
+    jobsLogger.error('createJob error:', error instanceof Error ? error.message : error);
     if (error instanceof ApiError) {
       return NextResponse.json({ message: error.message }, { status: error.status });
     }

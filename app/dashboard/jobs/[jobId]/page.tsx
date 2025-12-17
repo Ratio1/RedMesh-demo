@@ -1,10 +1,12 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import AppShell from '@/components/layout/AppShell';
 import { useAuth } from '@/components/auth/AuthContext';
 import useJobs from '@/lib/hooks/useJobs';
+import { useJobActions } from '@/lib/hooks/useJobActions';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
@@ -28,6 +30,54 @@ export default function JobDetailsPage(): JSX.Element {
   const router = useRouter();
   const { user, loading } = useAuth();
   const { jobs, refresh, loading: jobsLoading, error: jobsError } = useJobs();
+  const { stopJob, stopMonitoring, loading: actionLoading } = useJobActions();
+  const [stopping, setStopping] = useState(false);
+  const [stoppingMonitoring, setStoppingMonitoring] = useState(false);
+
+  const handleStopJob = async () => {
+    const job = jobs.find((candidate) => candidate.id === params.jobId);
+    if (!job) return;
+
+    const confirmed = window.confirm(
+      `Are you sure you want to stop the job "${job.displayName}"?\n\nThis action cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    setStopping(true);
+    try {
+      await stopJob(params.jobId);
+      await refresh();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to stop job.';
+      window.alert(`Error: ${message}`);
+    } finally {
+      setStopping(false);
+    }
+  };
+
+  const handleStopMonitoring = async () => {
+    const job = jobs.find((candidate) => candidate.id === params.jobId);
+    if (!job) return;
+
+    const confirmed = window.confirm(
+      `Stop monitoring for "${job.displayName}"?\n\nThe current pass will complete before stopping (SOFT stop).`
+    );
+
+    if (!confirmed) return;
+
+    setStoppingMonitoring(true);
+    try {
+      await stopMonitoring(params.jobId, 'SOFT');
+      await refresh();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to stop monitoring.';
+      window.alert(`Error: ${message}`);
+    } finally {
+      setStoppingMonitoring(false);
+    }
+  };
+
   const handleDownload = () => {
     if (!job) return;
     const doc = new jsPDF();
@@ -150,6 +200,26 @@ export default function JobDetailsPage(): JSX.Element {
             </div>
           </div>
           <div className="flex flex-wrap gap-3">
+            {(job.status === 'running' || job.status === 'queued') && (
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={handleStopJob}
+                disabled={stopping || actionLoading}
+              >
+                {stopping ? 'Stopping...' : 'Stop Job'}
+              </Button>
+            )}
+            {job.duration === 'continuous' && job.status === 'running' && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleStopMonitoring}
+                disabled={stoppingMonitoring || actionLoading}
+              >
+                {stoppingMonitoring ? 'Stopping...' : 'Stop Monitoring'}
+              </Button>
+            )}
             <Button variant="secondary" size="sm" onClick={() => refresh()}>
               Refresh task
             </Button>

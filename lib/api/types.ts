@@ -87,6 +87,7 @@ export interface CreateJobInput {
   duration?: JobDuration;
   tempo?: JobTempo;
   tempoSteps?: JobTempoSteps;
+  scanDelay?: JobTempo;
 }
 
 export interface UserAccount {

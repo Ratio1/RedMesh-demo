@@ -1,10 +1,12 @@
 import { getAppConfig } from '../config/env';
 import { ApiError } from '../api/errors';
+import { redmeshLogger } from './logger';
 import {
   LaunchTestRequest,
   LaunchTestResponse,
   GetJobStatusResponse,
   ListFeaturesResponse,
+  FeatureCatalogResponse,
   ListJobsResponse,
   StopAndDeleteJobResponse,
   StopMonitoringRequest,
@@ -32,6 +34,7 @@ export class RedMeshApiService {
     options?: {
       params?: Record<string, string>;
       body?: unknown;
+      timeout?: number;
     }
   ): Promise<T> {
     let url = `${this.baseUrl}${path}`;
@@ -41,28 +44,60 @@ export class RedMeshApiService {
       url = `${url}?${searchParams.toString()}`;
     }
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), options?.timeout ?? 30000);
+
     const fetchOptions: RequestInit = {
       method,
       headers: {
         'Content-Type': 'application/json',
       },
+      signal: controller.signal,
     };
 
     if (options?.body) {
       fetchOptions.body = JSON.stringify(options.body);
     }
 
-    const response = await fetch(url, fetchOptions);
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new ApiError(
-        response.status,
-        text || `RedMesh API request failed: ${method} ${path}`
-      );
+    redmeshLogger.debug(`→ ${method} ${url}`);
+    if (options?.body) {
+      redmeshLogger.debug('Request body:', options.body);
     }
 
-    return response.json();
+    try {
+      const response = await fetch(url, fetchOptions);
+      clearTimeout(timeoutId);
+
+      redmeshLogger.debug(`← ${response.status} ${response.statusText}`);
+
+      if (!response.ok) {
+        const text = await response.text();
+        redmeshLogger.error(`Error response body: ${text}`);
+        throw new ApiError(
+          response.status,
+          text || `RedMesh API request failed: ${method} ${path}`
+        );
+      }
+
+      const data = await response.json();
+      redmeshLogger.debug('Response body:', data);
+      return data;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error instanceof Error && error.name === 'AbortError') {
+        const timeoutMs = options?.timeout ?? 30000;
+        redmeshLogger.error(`Request timeout after ${timeoutMs / 1000}s: ${method} ${url}`);
+        if (options?.body) {
+          redmeshLogger.error('Request body was:', options.body);
+        }
+        throw new ApiError(504, `RedMesh API request timed out: ${method} ${path}`);
+      }
+      redmeshLogger.error(`Request failed: ${method} ${url}`, error);
+      if (options?.body) {
+        redmeshLogger.error('Request body was:', options.body);
+      }
+      throw error;
+    }
   }
 
   /**
@@ -70,8 +105,10 @@ export class RedMeshApiService {
    * The job is announced to the network and executed asynchronously by distributed workers.
    */
   async launchTest(request: LaunchTestRequest): Promise<LaunchTestResponse> {
+    // Use longer timeout for launch_test as it may take time to coordinate workers
     return this.request<LaunchTestResponse>('POST', '/launch_test', {
       body: request,
+      timeout: 120000, // 2 minutes
     });
   }
 
@@ -89,6 +126,14 @@ export class RedMeshApiService {
    */
   async listFeatures(): Promise<ListFeaturesResponse> {
     return this.request<ListFeaturesResponse>('GET', '/list_features');
+  }
+
+  /**
+   * Get the feature catalog with grouped features, labels, and descriptions.
+   * Returns human-readable groupings for UI display along with method names.
+   */
+  async getFeatureCatalog(): Promise<FeatureCatalogResponse> {
+    return this.request<FeatureCatalogResponse>('GET', '/get_feature_catalog');
   }
 
   /**
