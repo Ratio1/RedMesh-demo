@@ -513,10 +513,10 @@ export async function fetchJobs(authToken?: string): Promise<Job[]> {
 
   try {
     const api = getRedMeshApiService();
-    const networkJobs = await api.listNetworkJobs();
+    const jobSpecs = await api.listNetworkJobs();
 
     // Transform JobSpecs Record to Job array
-    const jobs = Object.values(networkJobs).map(normalizeJobFromSpecs);
+    const jobs = Object.values(jobSpecs).map(normalizeJobFromSpecs);
     return jobs;
   } catch (error) {
     console.error('[fetchJobs] Error fetching jobs:', error);

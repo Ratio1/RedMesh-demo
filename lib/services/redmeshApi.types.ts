@@ -1,5 +1,17 @@
 // RedMesh API Types based on REDMESH_API_SPEC.json
 
+// All API responses are wrapped in this structure
+export interface ApiResponseWrapper<T> {
+  result: T;
+  server_node_addr?: string;
+  evm_network?: string;
+  ee_node_alias?: string;
+  ee_node_address?: string;
+  ee_node_eth_address?: string;
+  ee_node_network?: string;
+  ee_node_ver?: string;
+}
+
 export type DistributionStrategy = 'SLICE' | 'MIRROR';
 export type PortOrder = 'SHUFFLE' | 'SEQUENTIAL';
 export type RunMode = 'SINGLEPASS' | 'CONTINUOUS_MONITORING';
@@ -168,6 +180,7 @@ export interface FeatureCatalogResponse {
 }
 
 // List Jobs Response (for network and local jobs)
+// This is the inner "result" content - the wrapper is handled by the API service
 export type ListJobsResponse = Record<string, JobSpecs>;
 
 // Stop and Delete Job Response

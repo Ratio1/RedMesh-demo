@@ -2,6 +2,7 @@ import { getAppConfig } from '../config/env';
 import { ApiError } from '../api/errors';
 import { redmeshLogger } from './logger';
 import {
+  ApiResponseWrapper,
   LaunchTestRequest,
   LaunchTestResponse,
   GetJobStatusResponse,
@@ -79,9 +80,18 @@ export class RedMeshApiService {
         );
       }
 
-      const data = await response.json();
+      const data = await response.json() as ApiResponseWrapper<T>;
       redmeshLogger.debug('Response body:', data);
-      return data;
+
+      // All API responses are wrapped in { result: T, ...metadata }
+      // Check if result contains an error
+      if (data.result && typeof data.result === 'object' && 'error' in data.result) {
+        const errorResult = data.result as { error: string };
+        redmeshLogger.error(`API error: ${errorResult.error}`);
+        throw new ApiError(400, errorResult.error);
+      }
+
+      return data.result;
     } catch (error) {
       clearTimeout(timeoutId);
       if (error instanceof Error && error.name === 'AbortError') {

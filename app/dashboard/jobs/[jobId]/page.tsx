@@ -10,6 +10,7 @@ import { useJobActions } from '@/lib/hooks/useJobActions';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
+import CopyableText from '@/components/ui/CopyableText';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 
@@ -273,14 +274,18 @@ export default function JobDetailsPage(): JSX.Element {
 
           <Card title="Meta" description="Operational metadata and ownership">
             <dl className="space-y-3 text-sm text-slate-300">
-              <div className="flex items-center justify-between">
-                <dt>Initiator</dt>
-                <dd className="font-semibold text-slate-100">{job.initiator}</dd>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="shrink-0">Initiator</dt>
+                <dd className="min-w-0">
+                  <CopyableText text={job.initiator} className="font-semibold text-slate-100" />
+                </dd>
               </div>
               {job.owner && (
-                <div className="flex items-center justify-between">
-                  <dt>Owner</dt>
-                  <dd className="text-slate-100">{job.owner}</dd>
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="shrink-0">Owner</dt>
+                  <dd className="min-w-0">
+                    <CopyableText text={job.owner} className="text-slate-100" />
+                  </dd>
                 </div>
               )}
               <div className="flex items-center justify-between">
