@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { fetchJobs, createJob } from '@/lib/api/jobs';
+import { fetchJobs, fetchJobsWithReports, createJob } from '@/lib/api/jobs';
 import { ApiError } from '@/lib/api/errors';
 import { CreateJobInput } from '@/lib/api/types';
 import { jobsLogger } from '@/lib/services/logger';
@@ -12,7 +12,20 @@ export async function GET(request: Request) {
     ? authHeader.slice('Bearer '.length)
     : authHeader ?? undefined;
 
+  const url = new URL(request.url);
+  const includeReports = url.searchParams.get('includeReports') === 'true';
+
   try {
+    if (includeReports) {
+      // Fetch jobs with their report content from R1FS
+      const result = await fetchJobsWithReports(token);
+      jobsLogger.debug(`Fetched ${result.jobs.length} jobs with ${Object.keys(result.reports).length} reports`);
+      return NextResponse.json({
+        jobs: result.jobs,
+        reports: result.reports
+      }, { status: 200 });
+    }
+
     const jobs = await fetchJobs(token);
     jobsLogger.debug(`Fetched ${jobs.length} jobs`);
     return NextResponse.json({ jobs }, { status: 200 });

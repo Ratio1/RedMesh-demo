@@ -143,14 +143,22 @@ export default function JobList({
               <div className="flex flex-wrap items-center gap-3">
                 <h3 className="text-lg font-semibold text-slate-100">{job.displayName}</h3>
                 <StatusBadge status={job.status} />
+                <Badge
+                  tone={job.runMode === 'continuous' ? 'warning' : 'neutral'}
+                  label={job.runMode === 'continuous' ? 'Continuous' : 'Single Pass'}
+                />
                 <Badge tone="neutral" label={`Priority: ${job.priority}`} />
                 <Badge tone="neutral" label={`Workers: ${job.workerCount}`} />
+                {job.runMode === 'continuous' && job.currentPass > 1 && (
+                  <Badge tone="success" label={`Pass #${job.currentPass}`} />
+                )}
               </div>
               <p className="text-sm text-slate-300">{job.summary}</p>
               <div className="flex flex-wrap gap-4 text-xs text-slate-400">
-                <span>Target {job.target}</span>
-                <span>Initiator {job.initiator}</span>
-                {job.owner && <span>Owner {job.owner}</span>}
+                <span>Target: {job.target}</span>
+                <span>Ports: {job.portRange.start}-{job.portRange.end}</span>
+                <span>Initiator: {job.initiator}</span>
+                {job.owner && <span>Owner: {job.owner}</span>}
                 <span>Created {formatRelative(job.createdAt)}</span>
                 {job.startedAt && <span>Started {formatRelative(job.startedAt)}</span>}
                 {job.completedAt && <span>Completed {formatRelative(job.completedAt)}</span>}

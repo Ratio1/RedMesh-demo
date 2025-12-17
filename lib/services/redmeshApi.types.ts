@@ -40,7 +40,13 @@ export interface WorkerAssignment {
   start_port: number;
   end_port: number;
   finished: boolean;
+  canceled?: boolean;
+  report_cid?: string | null;
+  result?: unknown | null;
 }
+
+// Job Status
+export type JobStatusType = 'RUNNING' | 'FINALIZED' | 'CANCELLED' | 'FAILED';
 
 // Job Specs
 export interface JobSpecs {
@@ -51,7 +57,10 @@ export interface JobSpecs {
   exceptions: number[];
   launcher: string;
   launcher_alias?: string;
-  created_at?: number;
+  date_created: number;
+  date_updated: number;
+  date_finalized?: number | null;
+  job_status: JobStatusType;
   workers: Record<string, WorkerAssignment>;
   distribution_strategy: DistributionStrategy;
   port_order: PortOrder;
@@ -196,10 +205,11 @@ export interface StopMonitoringRequest {
 }
 
 // Pass History Entry
+// Note: API returns pass_nr and reports mapping (node_address -> CID)
 export interface PassHistoryEntry {
-  pass_number: number;
+  pass_nr: number;
   completed_at: number;
-  report_cid: string;
+  reports: Record<string, string>; // node_address -> CID mapping
 }
 
 // Stop Monitoring Response

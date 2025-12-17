@@ -1,7 +1,7 @@
 'use client';
 
 import { useAuth } from '@/components/auth/AuthContext';
-import { Job } from '@/lib/api/types';
+import { Job, WorkerReport } from '@/lib/api/types';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 interface JobsState {
@@ -9,6 +9,7 @@ interface JobsState {
   ongoingJobs: Job[];
   completedJobs: Job[];
   failedJobs: Job[];
+  reports: Record<string, WorkerReport>;
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
@@ -17,6 +18,7 @@ interface JobsState {
 export default function useJobs(): JobsState {
   const { token, loading: authLoading } = useAuth();
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [reports, setReports] = useState<Record<string, WorkerReport>>({});
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const inFlightRef = useRef<AbortController | null>(null);
@@ -38,7 +40,8 @@ export default function useJobs(): JobsState {
     setError(null);
 
     try {
-      const response = await fetch('/api/jobs', {
+      // Fetch jobs with reports included
+      const response = await fetch('/api/jobs?includeReports=true', {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         signal: controller.signal
       });
@@ -49,6 +52,7 @@ export default function useJobs(): JobsState {
       }
 
       setJobs((payload as { jobs?: Job[] }).jobs ?? []);
+      setReports((payload as { reports?: Record<string, WorkerReport> }).reports ?? {});
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
         return;
@@ -87,6 +91,7 @@ export default function useJobs(): JobsState {
     ongoingJobs: split.ongoing,
     completedJobs: split.completed,
     failedJobs: split.failed,
+    reports,
     loading,
     error,
     refresh: loadJobs
