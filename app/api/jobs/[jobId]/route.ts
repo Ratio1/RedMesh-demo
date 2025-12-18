@@ -64,7 +64,7 @@ export async function GET(request: Request, { params }: RouteParams) {
 
 /**
  * DELETE /api/jobs/[jobId]
- * Stop and delete a job.
+ * Stop a job using stop_monitoring with HARD stop type.
  */
 export async function DELETE(request: Request, { params }: RouteParams) {
   const { jobId } = await params;
@@ -75,19 +75,25 @@ export async function DELETE(request: Request, { params }: RouteParams) {
 
   try {
     const api = getRedMeshApiService();
-    const result = await api.stopAndDeleteJob(jobId);
+    const result = await api.stopMonitoring({
+      job_id: jobId,
+      stop_type: 'HARD'
+    });
 
     return NextResponse.json({
-      status: result.status,
+      status: 'success',
       job_id: result.job_id,
-      message: `Job ${jobId} has been stopped and deleted.`
+      monitoring_status: result.monitoring_status,
+      stop_type: result.stop_type,
+      passes_completed: result.passes_completed,
+      message: `Job ${jobId} has been stopped.`
     }, { status: 200 });
   } catch (error) {
     if (error instanceof ApiError) {
       return NextResponse.json({ message: error.message }, { status: error.status });
     }
 
-    console.error('Unexpected job deletion error', error);
-    return NextResponse.json({ message: 'Unable to stop and delete job.' }, { status: 500 });
+    console.error('Unexpected job stop error', error);
+    return NextResponse.json({ message: 'Unable to stop job.' }, { status: 500 });
   }
 }

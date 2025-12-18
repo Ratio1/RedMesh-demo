@@ -363,6 +363,8 @@ function normalizeJobFromSpecs(specs: JobSpecs): Job {
     displayName: specs.task_name || `${specs.target} - ${specs.job_id?.slice(0, 8) ?? 'new'}`,
     target: specs.target,
     initiator: specs.launcher_alias ?? specs.launcher,
+    initiatorAddress: specs.launcher,
+    initiatorAlias: specs.launcher_alias,
     status,
     summary: specs.task_description || 'RedMesh scan job',
     createdAt,
@@ -389,6 +391,7 @@ function normalizeJobFromSpecs(specs: JobSpecs): Job {
     currentPass: specs.job_pass ?? 1,
     monitorInterval: specs.monitor_interval,
     nextPassAt,
+    monitoringStatus: specs.monitoring_status,
     tempo: specs.scan_min_delay != null && specs.scan_max_delay != null
       ? { minSeconds: specs.scan_min_delay, maxSeconds: specs.scan_max_delay }
       : undefined,
@@ -457,16 +460,35 @@ export function normalizeJobStatusResponse(response: GetJobStatusResponse): Job 
     const workers = Object.entries(response.report).map(([workerId, report]) => {
       allOpenPorts.push(...report.open_ports);
 
-      // Merge service info
+      // Merge service info for aggregate summary
       for (const [port, info] of Object.entries(report.service_info)) {
-        serviceSummary[port] = info.service ?? info.banner ?? 'Unknown';
+        // Extract a human-readable summary for the aggregate
+        const infoObj = info as Record<string, unknown>;
+        const sshBanner = infoObj._service_info_22 as string | undefined;
+        const genericBanner = infoObj._service_info_generic as string | undefined;
+        serviceSummary[port] = sshBanner ?? genericBanner ?? 'Service detected';
       }
 
-      // Merge web test findings
-      for (const [testId, result] of Object.entries(report.web_tests_info)) {
-        if (result.vulnerable) {
-          webFindings[testId] = result.details ?? 'Vulnerable';
+      // Merge web test findings for aggregate summary
+      for (const [port, testResults] of Object.entries(report.web_tests_info)) {
+        const results = testResults as Record<string, string>;
+        for (const [testId, result] of Object.entries(results)) {
+          if (result && !result.startsWith('ERROR:')) {
+            webFindings[`${port}:${testId}`] = result;
+          }
         }
+      }
+
+      // Preserve full service_info and web_tests_info data
+      // The API returns service_info keyed by port, with each port having multiple probe results
+      const serviceInfoFull: Record<string, Record<string, unknown>> = {};
+      for (const [port, info] of Object.entries(report.service_info)) {
+        serviceInfoFull[port] = info as Record<string, unknown>;
+      }
+
+      const webTestsInfoFull: Record<string, Record<string, unknown>> = {};
+      for (const [port, tests] of Object.entries(report.web_tests_info)) {
+        webTestsInfoFull[port] = tests as Record<string, unknown>;
       }
 
       return {
@@ -478,13 +500,16 @@ export function normalizeJobStatusResponse(response: GetJobStatusResponse): Job 
         canceled: report.canceled,
         portsScanned: report.ports_scanned,
         openPorts: report.open_ports,
-        serviceInfo: Object.fromEntries(
-          Object.entries(report.service_info).map(([p, i]) => [p, i.service ?? ''])
-        ),
-        webTestsInfo: Object.fromEntries(
-          Object.entries(report.web_tests_info).map(([t, r]) => [t, r.vulnerable ? 'Vulnerable' : 'Safe'])
-        ),
-        completedTests: report.completed_tests
+        serviceInfo: serviceInfoFull,
+        webTestsInfo: webTestsInfoFull,
+        completedTests: report.completed_tests,
+        // Additional fields from completed job reports
+        target: report.target,
+        initiator: report.initiator,
+        jobId: report.job_id,
+        webTested: report.web_tested,
+        nrOpenPorts: report.nr_open_ports,
+        exceptions: report.exceptions
       };
     });
 
@@ -663,11 +688,14 @@ function extractCidsFromJob(job: Job): string[] {
 
 /**
  * Fetch a single job with its report content from R1FS.
- * More efficient than fetching all jobs when you only need one.
+ * Uses get_job_data as the primary endpoint for job specs and pass_history.
+ * Falls back to get_job_status for real-time worker data (service_info, web_tests_info).
  */
 export async function fetchJobWithReports(jobId: string): Promise<{
   job: Job;
   reports: Record<string, Record<string, unknown>>;
+  /** Worker-level detailed scan results from get_job_status (for completed jobs) */
+  workerResults?: Job['workers'];
 } | null> {
   const config = getAppConfig();
 
@@ -684,22 +712,71 @@ export async function fetchJobWithReports(jobId: string): Promise<{
 
   try {
     const api = getRedMeshApiService();
-    const response = await api.getJobStatus(jobId);
 
-    if (response.status === 'not_found') {
-      return null;
+    // Primary: Use get_job_data for job specs and pass_history
+    const jobDataResponse = await api.getJobData(jobId);
+
+    if (!jobDataResponse.found || !jobDataResponse.job) {
+      // Fall back to get_job_status if get_job_data doesn't find the job
+      const statusResponse = await api.getJobStatus(jobId);
+      if (statusResponse.status === 'not_found') {
+        return null;
+      }
+
+      const job = normalizeJobStatusResponse(statusResponse);
+      if (!job) {
+        return null;
+      }
+
+      const cids = extractCidsFromJob(job);
+      const reports = cids.length > 0 ? await fetchReportsByCids(cids) : {};
+
+      return { job, reports };
     }
 
-    const job = normalizeJobStatusResponse(response);
-    if (!job) {
-      return null;
-    }
+    // Normalize job from JobSpecs
+    const job = normalizeJobFromSpecs(jobDataResponse.job);
 
-    // Extract CIDs from this job's pass_history and fetch reports
+    // Extract CIDs from pass_history and fetch reports
     const cids = extractCidsFromJob(job);
     const reports = cids.length > 0 ? await fetchReportsByCids(cids) : {};
 
-    return { job, reports };
+    // For completed/running jobs, also fetch get_job_status for worker-level details
+    // This provides service_info, web_tests_info, open_ports from workers
+    let workerResults: Job['workers'] | undefined;
+
+    try {
+      const statusResponse = await api.getJobStatus(jobId);
+
+      if (statusResponse.status === 'completed') {
+        // Extract detailed worker results from completed job status
+        const completedJob = normalizeJobStatusResponse(statusResponse);
+        if (completedJob) {
+          workerResults = completedJob.workers;
+          // Merge aggregate data
+          if (completedJob.aggregate) {
+            job.aggregate = completedJob.aggregate;
+          }
+        }
+      } else if (statusResponse.status === 'running') {
+        // For running jobs, get real-time worker progress
+        const runningJob = normalizeJobStatusResponse(statusResponse);
+        if (runningJob) {
+          workerResults = runningJob.workers;
+        }
+      }
+    } catch (statusError) {
+      // get_job_status may fail for some jobs, that's ok - we still have job data
+      console.warn(`[fetchJobWithReports] get_job_status failed for ${jobId}:`, statusError);
+    }
+
+    // Merge worker results into job if available
+    if (workerResults && workerResults.length > 0) {
+      job.workers = workerResults;
+      job.workerCount = workerResults.length;
+    }
+
+    return { job, reports, workerResults };
   } catch (error) {
     console.error(`[fetchJobWithReports] Error fetching job ${jobId}:`, error);
     if (error instanceof ApiError) {

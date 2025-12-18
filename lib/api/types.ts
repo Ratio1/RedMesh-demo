@@ -29,9 +29,16 @@ export interface JobWorkerStatus {
   canceled: boolean;
   portsScanned: number;
   openPorts: number[];
-  serviceInfo: Record<string, string>;
-  webTestsInfo: Record<string, string>;
+  serviceInfo: Record<string, Record<string, unknown>>;
+  webTestsInfo: Record<string, Record<string, unknown>>;
   completedTests: string[];
+  // Additional fields from completed job reports
+  target?: string;
+  initiator?: string;
+  jobId?: string;
+  webTested?: boolean;
+  nrOpenPorts?: number;
+  exceptions?: number[];
 }
 
 export interface JobAggregateReport {
@@ -77,6 +84,8 @@ export interface Job {
   displayName: string;
   target: string;
   initiator: string;
+  initiatorAddress?: string; // Full launcher address (0xai_...)
+  initiatorAlias?: string; // Human-readable alias
   status: JobStatus;
   summary: string;
   createdAt: string;
@@ -103,6 +112,7 @@ export interface Job {
   currentPass: number;
   monitorInterval?: number;
   nextPassAt?: string;
+  monitoringStatus?: string;
   tempo?: JobTempo;
   tempoSteps?: JobTempoSteps;
   passHistory?: PassHistoryEntry[];

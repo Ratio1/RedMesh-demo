@@ -6,6 +6,7 @@ import {
   LaunchTestRequest,
   LaunchTestResponse,
   GetJobStatusResponse,
+  GetJobDataResponse,
   ListFeaturesResponse,
   FeatureCatalogResponse,
   ListJobsResponse,
@@ -124,9 +125,21 @@ export class RedMeshApiService {
 
   /**
    * Retrieve the current status or final report of a pentest job.
+   * Use this for real-time worker progress and completed job reports with full service_info.
    */
   async getJobStatus(jobId: string): Promise<GetJobStatusResponse> {
     return this.request<GetJobStatusResponse>('GET', '/get_job_status', {
+      params: { job_id: jobId },
+    });
+  }
+
+  /**
+   * Retrieve job data including pass history and configuration.
+   * This is the primary endpoint for job details - includes pass_history with report CIDs.
+   * Use this for displaying job specs, pass history, and fetching reports by CID.
+   */
+  async getJobData(jobId: string): Promise<GetJobDataResponse> {
+    return this.request<GetJobDataResponse>('GET', '/get_job_data', {
       params: { job_id: jobId },
     });
   }

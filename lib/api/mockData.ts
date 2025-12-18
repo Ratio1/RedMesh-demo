@@ -55,12 +55,20 @@ function buildWorker(
     portsScanned: done ? endPort - startPort + 1 : Math.floor((endPort - startPort + 1) * 0.45),
     openPorts: done ? [22, 80].filter((port) => port >= startPort && port <= endPort) : [],
     serviceInfo: {
-      'ssh': 'OpenSSH 9.0p1',
-      'http': 'nginx 1.24.0'
+      '22': {
+        _service_info_22: 'SSH banner: OpenSSH 9.0p1',
+        _service_info_generic: 'OpenSSH 9.0p1'
+      },
+      '80': {
+        _service_info_80: 'HTTP server: nginx 1.24.0',
+        _service_info_generic: 'nginx 1.24.0'
+      }
     },
     webTestsInfo: {
-      security_headers: done ? 'Missing Content-Security-Policy' : 'Pending',
-      common_paths: done ? 'Accessible /admin login form detected' : 'Pending'
+      '80': {
+        _web_test_security_headers: done ? 'Missing Content-Security-Policy' : 'Pending',
+        _web_test_common: done ? 'Accessible /admin login form detected' : 'Pending'
+      }
     },
     completedTests: done ? ['port_scan', 'service_probe', 'web_test_security_headers'] : ['port_scan']
   };

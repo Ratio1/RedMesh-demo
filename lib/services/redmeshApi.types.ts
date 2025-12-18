@@ -119,6 +119,13 @@ export type GetJobStatusResponse =
   | JobStatusNetworkTracked
   | JobStatusNotFound;
 
+// Get Job Data Response (primary endpoint for job details)
+export interface GetJobDataResponse {
+  job_id: string;
+  found: boolean;
+  job?: JobSpecs;
+}
+
 // Worker Progress
 export interface WorkerProgress {
   local_worker_id: string;
@@ -134,14 +141,18 @@ export interface WorkerProgress {
 // Worker Report
 export interface WorkerReport {
   job_id: string;
+  initiator: string;
   local_worker_id: string;
   target: string;
   start_port: number;
   end_port: number;
   ports_scanned: number;
+  nr_open_ports: number;
   open_ports: number[];
-  service_info: Record<string, ServiceInfo>;
-  web_tests_info: Record<string, WebTestResult>;
+  exceptions: number[];
+  service_info: Record<string, Record<string, unknown>>;
+  web_tests_info: Record<string, Record<string, unknown>>;
+  web_tested: boolean;
   completed_tests: string[];
   progress: string;
   done: boolean;
