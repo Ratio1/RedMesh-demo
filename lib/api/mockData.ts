@@ -8,7 +8,7 @@ import {
   JobWorkerStatus
 } from './types';
 import { ApiError } from './errors';
-import { REDMESH_FEATURE_CATALOG, getDefaultFeatureIds } from '../domain/features';
+import { getDefaultFeatureCatalog, getDefaultFeatureIds } from '../domain/features';
 
 interface MockUserRecord {
   id: string;
@@ -128,11 +128,16 @@ function buildJob(partial?: Partial<Job>): Job {
     workerCount: workers.length,
     exceptionPorts: [25, 161],
     featureSet: getDefaultFeatureIds(),
+    excludedFeatures: [],
     workers,
     aggregate,
     timeline,
     distribution: 'slice',
     duration: 'singlepass',
+    runMode: 'singlepass',
+    portOrder: 'sequential',
+    portRange: { start: 1, end: 4096 },
+    currentPass: 1,
     tempo: { minSeconds: 20, maxSeconds: 120 },
     tempoSteps: partial?.tempoSteps ?? { min: 4, max: 8 }
   };
@@ -335,6 +340,7 @@ export function getMockJobs(): Job[] {
 
 export function createMockJob(input: CreateJobInput, owner?: string): Job {
   const now = new Date();
+  const duration = input.duration ?? 'singlepass';
   const job: Job = {
     id: randomUUID(),
     displayName: input.name,
@@ -352,12 +358,17 @@ export function createMockJob(input: CreateJobInput, owner?: string): Job {
     workerCount: input.workerCount ?? 1,
     exceptionPorts: input.exceptions ?? [],
     featureSet: input.features?.length ? input.features : getDefaultFeatureIds(),
+    excludedFeatures: [],
     workers: [],
     aggregate: undefined,
     timeline: buildTimeline([{ label: 'Job created', at: now }]),
     lastError: undefined,
     distribution: input.distribution ?? 'slice',
-    duration: input.duration ?? 'singlepass',
+    duration,
+    runMode: duration === 'continuous' ? 'continuous' : 'singlepass',
+    portOrder: 'sequential',
+    portRange: input.portRange,
+    currentPass: 1,
     tempo: input.tempo,
     tempoSteps: input.tempoSteps
   };
@@ -432,5 +443,5 @@ export async function authenticateMockUser(
 }
 
 export function getAvailableFeatures(): string[] {
-  return REDMESH_FEATURE_CATALOG.map((feature) => feature.id);
+  return getDefaultFeatureIds();
 }

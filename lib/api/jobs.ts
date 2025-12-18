@@ -5,15 +5,29 @@ import {
   JobAggregateReport,
   JobDistribution,
   JobDuration,
+  JobPortOrder,
   JobPriority,
+  JobRunMode,
   JobStatus,
   JobTimelineEntry,
   JobTempo,
   JobTempoSteps,
-  JobWorkerStatus
+  JobWorkerStatus,
+  PassHistoryEntry
 } from './types';
 import { createMockJob, getAvailableFeatures, getMockJobs } from './mockData';
 import { getAppConfig } from '../config/env';
+import { getDefaultFeatureCatalog } from '../domain/features';
+import {
+  getRedMeshApiService,
+  JobSpecs,
+  LaunchTestRequest,
+  GetJobStatusResponse
+} from '../services/redmeshApi';
+import {
+  extractCidsFromJobs,
+  fetchReportsByCids
+} from '../services/edgeClient';
 
 function coerceArray<T>(value: unknown): T[] {
   if (Array.isArray(value)) {
@@ -266,6 +280,274 @@ function normalizePriority(value: unknown): JobPriority {
   }
 }
 
+/**
+ * Transform JobSpecs from RedMesh API to UI Job type.
+ * This handles the specific field mappings from the actual API response format.
+ */
+function normalizeJobFromSpecs(specs: JobSpecs): Job {
+  const createdAt = specs.date_created
+    ? new Date(specs.date_created * 1000).toISOString()
+    : new Date().toISOString();
+
+  const updatedAt = specs.date_updated
+    ? new Date(specs.date_updated * 1000).toISOString()
+    : createdAt;
+
+  const finalizedAt = specs.date_finalized
+    ? new Date(specs.date_finalized * 1000).toISOString()
+    : undefined;
+
+  // Transform workers from Record<string, WorkerAssignment> to JobWorkerStatus[]
+  const workers = Object.entries(specs.workers).map(([workerId, assignment]) => ({
+    id: workerId,
+    startPort: assignment.start_port,
+    endPort: assignment.end_port,
+    progress: assignment.finished ? 100 : 0,
+    done: assignment.finished,
+    canceled: assignment.canceled ?? false,
+    portsScanned: assignment.finished ? (assignment.end_port - assignment.start_port + 1) : 0,
+    openPorts: [],
+    serviceInfo: {},
+    webTestsInfo: {},
+    completedTests: []
+  }));
+
+  // Derive status from job_status field
+  let status: JobStatus = 'queued';
+  const jobStatus = specs.job_status?.toUpperCase();
+  if (jobStatus === 'FINALIZED') {
+    status = 'completed';
+  } else if (jobStatus === 'RUNNING') {
+    status = 'running';
+  } else if (jobStatus === 'CANCELLED' || jobStatus === 'CANCELED') {
+    status = 'cancelled';
+  } else if (jobStatus === 'FAILED') {
+    status = 'failed';
+  }
+
+  // Generate timeline from timestamps
+  const timeline: JobTimelineEntry[] = [
+    { label: 'Job created', at: createdAt }
+  ];
+  if (status === 'running' || status === 'completed') {
+    timeline.push({ label: 'Job started', at: createdAt });
+  }
+  if (finalizedAt) {
+    timeline.push({ label: 'Job finalized', at: finalizedAt });
+  }
+
+  // Map distribution_strategy to UI format
+  const distribution: JobDistribution = specs.distribution_strategy === 'MIRROR' ? 'mirror' : 'slice';
+
+  // Map run_mode to UI format
+  const duration: JobDuration = specs.run_mode === 'CONTINUOUS_MONITORING' ? 'continuous' : 'singlepass';
+  const runMode: JobRunMode = specs.run_mode === 'CONTINUOUS_MONITORING' ? 'continuous' : 'singlepass';
+
+  // Map port_order to UI format
+  const portOrder: JobPortOrder = specs.port_order?.toLowerCase() === 'random' ? 'random' : 'sequential';
+
+  // Normalize pass_history to UI format
+  const passHistory: PassHistoryEntry[] | undefined = specs.pass_history?.map((entry) => ({
+    passNr: entry.pass_nr,
+    completedAt: new Date(entry.completed_at * 1000).toISOString(),
+    reports: entry.reports
+  }));
+
+  // Next pass at (for continuous monitoring)
+  const nextPassAt = specs.next_pass_at
+    ? new Date(specs.next_pass_at * 1000).toISOString()
+    : undefined;
+
+  return {
+    id: specs.job_id,
+    displayName: specs.task_name || `${specs.target} - ${specs.job_id.slice(0, 8)}`,
+    target: specs.target,
+    initiator: specs.launcher_alias ?? specs.launcher,
+    status,
+    summary: specs.task_description || 'RedMesh scan job',
+    createdAt,
+    updatedAt,
+    startedAt: status === 'running' || status === 'completed' ? createdAt : undefined,
+    completedAt: finalizedAt,
+    finalizedAt,
+    owner: specs.launcher,
+    payloadUri: undefined,
+    priority: 'medium',
+    workerCount: workers.length,
+    exceptionPorts: specs.exceptions ?? [],
+    featureSet: specs.enabled_features ?? [],
+    excludedFeatures: specs.excluded_features ?? [],
+    workers,
+    aggregate: undefined,
+    timeline,
+    lastError: undefined,
+    distribution,
+    duration,
+    runMode,
+    portOrder,
+    portRange: { start: specs.start_port, end: specs.end_port },
+    currentPass: specs.job_pass ?? 1,
+    monitorInterval: specs.monitor_interval,
+    nextPassAt,
+    tempo: specs.scan_min_delay != null && specs.scan_max_delay != null
+      ? { minSeconds: specs.scan_min_delay, maxSeconds: specs.scan_max_delay }
+      : undefined,
+    tempoSteps: undefined,
+    passHistory
+  };
+}
+
+/**
+ * Transform GetJobStatusResponse to UI Job type.
+ * Handles different response variants (completed, running, network_tracked, not_found).
+ */
+export function normalizeJobStatusResponse(response: GetJobStatusResponse): Job | null {
+  if (response.status === 'not_found') {
+    return null;
+  }
+
+  if (response.status === 'network_tracked') {
+    return normalizeJobFromSpecs(response.job);
+  }
+
+  // For running and completed statuses, we have job_id and target
+  const baseJob: Partial<Job> = {
+    id: response.job_id,
+    target: response.target,
+    displayName: `${response.target} - ${response.job_id.slice(0, 8)}`,
+    summary: 'RedMesh scan job',
+    initiator: 'unknown',
+    priority: 'medium',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    timeline: [{ label: 'Status checked', at: new Date().toISOString() }],
+    exceptionPorts: [],
+    featureSet: []
+  };
+
+  if (response.status === 'running') {
+    const workers = Object.entries(response.workers).map(([workerId, progress]) => ({
+      id: workerId,
+      startPort: progress.start_port,
+      endPort: progress.end_port,
+      progress: parseFloat(progress.progress) || 0,
+      done: progress.done,
+      canceled: progress.canceled,
+      portsScanned: progress.ports_scanned,
+      openPorts: progress.open_ports,
+      serviceInfo: {},
+      webTestsInfo: {},
+      completedTests: []
+    }));
+
+    return {
+      ...baseJob,
+      status: 'running',
+      workerCount: workers.length,
+      workers
+    } as Job;
+  }
+
+  if (response.status === 'completed') {
+    // Aggregate data from worker reports
+    const allOpenPorts: number[] = [];
+    const serviceSummary: Record<string, string> = {};
+    const webFindings: Record<string, string> = {};
+
+    const workers = Object.entries(response.report).map(([workerId, report]) => {
+      allOpenPorts.push(...report.open_ports);
+
+      // Merge service info
+      for (const [port, info] of Object.entries(report.service_info)) {
+        serviceSummary[port] = info.service ?? info.banner ?? 'Unknown';
+      }
+
+      // Merge web test findings
+      for (const [testId, result] of Object.entries(report.web_tests_info)) {
+        if (result.vulnerable) {
+          webFindings[testId] = result.details ?? 'Vulnerable';
+        }
+      }
+
+      return {
+        id: workerId,
+        startPort: report.start_port,
+        endPort: report.end_port,
+        progress: 100,
+        done: report.done,
+        canceled: report.canceled,
+        portsScanned: report.ports_scanned,
+        openPorts: report.open_ports,
+        serviceInfo: Object.fromEntries(
+          Object.entries(report.service_info).map(([p, i]) => [p, i.service ?? ''])
+        ),
+        webTestsInfo: Object.fromEntries(
+          Object.entries(report.web_tests_info).map(([t, r]) => [t, r.vulnerable ? 'Vulnerable' : 'Safe'])
+        ),
+        completedTests: report.completed_tests
+      };
+    });
+
+    return {
+      ...baseJob,
+      status: 'completed',
+      completedAt: new Date().toISOString(),
+      workerCount: workers.length,
+      workers,
+      aggregate: {
+        openPorts: [...new Set(allOpenPorts)],
+        serviceSummary,
+        webFindings
+      }
+    } as Job;
+  }
+
+  return null;
+}
+
+/**
+ * Get excluded method names from deselected feature groups.
+ * The UI tracks selected feature group IDs, but the backend expects method names.
+ */
+function getExcludedMethods(selectedFeatureIds: string[]): string[] {
+  const catalog = getDefaultFeatureCatalog();
+  const excludedMethods: string[] = [];
+
+  for (const feature of catalog) {
+    if (!selectedFeatureIds.includes(feature.id)) {
+      // This feature group is not selected, add all its methods to excluded
+      excludedMethods.push(...feature.methods);
+    }
+  }
+
+  return excludedMethods;
+}
+
+/**
+ * Transform CreateJobInput to LaunchTestRequest for RedMesh API.
+ */
+function createJobInputToLaunchRequest(input: CreateJobInput): LaunchTestRequest {
+  // Get excluded methods from deselected feature groups
+  const excludedFeatures = input.features?.length
+    ? getExcludedMethods(input.features)
+    : undefined;
+
+  return {
+    target: input.target,
+    start_port: input.portRange.start,
+    end_port: input.portRange.end,
+    exceptions: input.exceptions?.join(','),
+    distribution_strategy: input.distribution === 'mirror' ? 'MIRROR' : 'SLICE',
+    port_order: 'SEQUENTIAL',
+    excluded_features: excludedFeatures?.length ? excludedFeatures : undefined,
+    run_mode: input.duration === 'continuous' ? 'CONTINUOUS_MONITORING' : 'SINGLEPASS',
+    scan_min_delay: input.scanDelay?.minSeconds,
+    scan_max_delay: input.scanDelay?.maxSeconds,
+    task_name: input.name || undefined,
+    task_description: input.summary || undefined
+  };
+}
+
 export async function fetchJobs(authToken?: string): Promise<Job[]> {
   const config = getAppConfig();
 
@@ -277,22 +559,20 @@ export async function fetchJobs(authToken?: string): Promise<Job[]> {
     throw new ApiError(500, 'RedMesh API endpoint is not configured.');
   }
 
-  const headers: Record<string, string> = {};
-  if (authToken) {
-    headers.Authorization = `Bearer ${authToken}`;
+  try {
+    const api = getRedMeshApiService();
+    const jobSpecs = await api.listNetworkJobs();
+
+    // Transform JobSpecs Record to Job array
+    const jobs = Object.values(jobSpecs).map(normalizeJobFromSpecs);
+    return jobs;
+  } catch (error) {
+    console.error('[fetchJobs] Error fetching jobs:', error);
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    throw new ApiError(500, error instanceof Error ? error.message : 'Unable to retrieve jobs from RedMesh.');
   }
-
-  const response = await fetch(`${config.redmeshApiUrl}/jobs`, { headers });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new ApiError(response.status, text || 'Unable to retrieve jobs from RedMesh.');
-  }
-
-  const payload = await response.json();
-  const items: any[] = Array.isArray(payload) ? payload : Array.isArray(payload?.jobs) ? payload.jobs : [];
-
-  return items.map((item) => normalizeJob(item));
 }
 
 export async function createJob(
@@ -309,47 +589,59 @@ export async function createJob(
     throw new ApiError(500, 'RedMesh API endpoint is not configured.');
   }
 
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json'
-  };
+  try {
+    const api = getRedMeshApiService();
+    const request = createJobInputToLaunchRequest(input);
+    const response = await api.launchTest(request);
 
-  if (options.authToken) {
-    headers.Authorization = `Bearer ${options.authToken}`;
+    // Transform the job_specs from the response to UI Job type
+    return normalizeJobFromSpecs(response.job_specs);
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    throw new ApiError(500, error instanceof Error ? error.message : 'Unable to create RedMesh job.');
+  }
+}
+
+/**
+ * Fetch jobs along with their report content from R1FS.
+ * Returns normalized jobs and a mapping of { cid: json_content }.
+ */
+export async function fetchJobsWithReports(authToken?: string): Promise<{
+  jobs: Job[];
+  reports: Record<string, Record<string, unknown>>;
+}> {
+  const config = getAppConfig();
+
+  if (config.mockMode || config.forceMockTasks) {
+    return {
+      jobs: getMockJobs(),
+      reports: {}
+    };
   }
 
-  const response = await fetch(`${config.redmeshApiUrl}/jobs`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      name: input.name,
-      summary: input.summary,
-      target: input.target,
-      port_range: input.portRange,
-      exceptions: input.exceptions,
-      features: input.features,
-      worker_count: input.workerCount,
-      payload_uri: input.payloadUri,
-      priority: input.priority,
-      distribution: input.distribution ?? 'slice',
-      duration: input.duration ?? 'singlepass',
-      tempo: input.tempo
-        ? { min_seconds: input.tempo.minSeconds, max_seconds: input.tempo.maxSeconds }
-        : undefined,
-      tempo_steps: input.tempoSteps ? { min: input.tempoSteps.min, max: input.tempoSteps.max } : undefined,
-      ...(input.tempoSteps
-        ? { tempo_steps_min: input.tempoSteps.min, tempo_steps_max: input.tempoSteps.max }
-        : {}),
-      host_id: config.hostId,
-      source: 'redmesh-demo-ui'
-    })
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new ApiError(response.status, text || 'Unable to create RedMesh job.');
+  if (!config.redmeshApiUrl) {
+    throw new ApiError(500, 'RedMesh API endpoint is not configured.');
   }
 
-  const payload = await response.json();
-  const jobPayload = payload?.job ?? payload;
-  return normalizeJob(jobPayload);
+  try {
+    const api = getRedMeshApiService();
+    const jobSpecs = await api.listNetworkJobs();
+
+    // Extract CIDs from pass_history and fetch their content from R1FS
+    const cids = extractCidsFromJobs(jobSpecs);
+    const reports = await fetchReportsByCids(cids);
+
+    // Transform JobSpecs Record to Job array
+    const jobs = Object.values(jobSpecs).map(normalizeJobFromSpecs);
+
+    return { jobs, reports };
+  } catch (error) {
+    console.error('[fetchJobsWithReports] Error fetching jobs with reports:', error);
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    throw new ApiError(500, error instanceof Error ? error.message : 'Unable to retrieve jobs from RedMesh.');
+  }
 }

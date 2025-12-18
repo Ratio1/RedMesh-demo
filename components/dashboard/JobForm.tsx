@@ -7,7 +7,6 @@ import TextArea from '@/components/ui/TextArea';
 import Card from '@/components/ui/Card';
 import { useAuth } from '@/components/auth/AuthContext';
 import { useAppConfig } from '@/components/layout/AppConfigContext';
-import { REDMESH_FEATURE_CATALOG } from '@/lib/domain/features';
 import type { Job, JobDistribution, JobDuration } from '@/lib/api/types';
 
 interface JobFormProps {
@@ -23,11 +22,8 @@ const priorities = [
 
 export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
   const { token, user } = useAuth();
-  const { config } = useAppConfig();
-  const featureCatalog =
-    config?.featureCatalog && config.featureCatalog.length > 0
-      ? config.featureCatalog
-      : REDMESH_FEATURE_CATALOG;
+  const { config, loading: configLoading } = useAppConfig();
+  const featureCatalog = config?.featureCatalog ?? [];
   const peersCount = config?.chainstorePeers?.length ?? 0;
   const computedMaxWorkers = config
     ? config.mockMode
@@ -49,31 +45,18 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
   const [priority, setPriority] = useState('medium');
   const [distribution, setDistribution] = useState<JobDistribution>('slice');
   const [duration, setDuration] = useState<JobDuration>('continuous');
-  const [tempoMin, setTempoMin] = useState<string>('30');
-  const [tempoMax, setTempoMax] = useState<string>('300');
+  const [tempoMin, setTempoMin] = useState<string>('0.05');
+  const [tempoMax, setTempoMax] = useState<string>('0.15');
   const [tempoEnabled, setTempoEnabled] = useState<boolean>(true);
-  const [tempoStepsMin, setTempoStepsMin] = useState<string>('');
-  const [tempoStepsMax, setTempoStepsMax] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const parsedTempoMin = tempoMin ? Number(tempoMin) : undefined;
   const parsedTempoMax = tempoMax ? Number(tempoMax) : undefined;
-  const tempoFieldsActive = duration === 'continuous' || tempoEnabled;
   const tempoInvalid =
-    tempoFieldsActive &&
+    tempoEnabled &&
     (!parsedTempoMin || !parsedTempoMax || parsedTempoMin <= 0 || parsedTempoMax < parsedTempoMin);
-  const parsedTempoStepsMin = tempoStepsMin ? Number(tempoStepsMin) : undefined;
-  const parsedTempoStepsMax = tempoStepsMax ? Number(tempoStepsMax) : undefined;
-  const tempoStepsProvided =
-    tempoFieldsActive && (parsedTempoStepsMin !== undefined || parsedTempoStepsMax !== undefined);
-  const tempoStepsInvalid =
-    tempoStepsProvided &&
-    (!Number.isInteger(parsedTempoStepsMin) ||
-      !Number.isInteger(parsedTempoStepsMax) ||
-      (parsedTempoStepsMin ?? 0) <= 0 ||
-      (parsedTempoStepsMax ?? 0) < (parsedTempoStepsMin ?? 0));
   const workerTrackFill =
     maxWorkers > 1 ? Math.round(((workerCount - 1) / (maxWorkers - 1)) * 100) : 0;
 
@@ -85,15 +68,6 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
     setSelectedFeatures(config.featureCatalog.map((feature) => feature.id));
   }, [config?.featureCatalog]);
 
-  useEffect(() => {
-    if (duration === 'continuous') {
-      setTempoEnabled(true);
-      setTempoMin((current) => (current ? current : '30'));
-      setTempoMax((current) => (current ? current : '300'));
-    } else {
-      setTempoEnabled(false);
-    }
-  }, [duration]);
 
   useEffect(() => {
     setWorkerCount((current) => {
@@ -105,30 +79,46 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    console.log('[JobForm] Submit started');
     setIsSubmitting(true);
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    if (tempoInvalid || tempoStepsInvalid) {
-      setErrorMessage(
-        tempoStepsInvalid
-          ? 'Tests-before-pause range is invalid. Provide min and max whole numbers (min > 0, max >= min).'
-          : duration === 'continuous'
-          ? 'Continuous monitoring requires a tempo window with a valid min and max (min > 0, max >= min).'
-          : 'Tempo window is incomplete. Provide both min and max seconds or leave both fields empty.'
-      );
+    if (tempoInvalid) {
+      console.log('[JobForm] Validation failed: tempoInvalid');
+      setErrorMessage('Dune sand walking values are invalid. Provide both min and max seconds (min > 0, max >= min).');
       setIsSubmitting(false);
       return;
     }
 
-    const tempoPayload =
-      tempoFieldsActive && parsedTempoMin !== undefined && parsedTempoMax !== undefined
+    // Scan delay payload (dune sand walking - delay between individual scans)
+    const scanDelayPayload =
+      tempoEnabled && parsedTempoMin !== undefined && parsedTempoMax !== undefined
         ? { minSeconds: parsedTempoMin, maxSeconds: parsedTempoMax }
         : undefined;
-    const tempoStepsPayload =
-      tempoFieldsActive && parsedTempoStepsMin !== undefined && parsedTempoStepsMax !== undefined
-        ? { min: parsedTempoStepsMin, max: parsedTempoStepsMax }
-        : undefined;
+
+    const requestBody = {
+      name,
+      summary,
+      target,
+      portRange: {
+        start: Number(portStart) || 1,
+        end: Number(portEnd) || 65535
+      },
+      exceptions: exceptions
+        .split(',')
+        .map((entry) => Number(entry.trim()))
+        .filter((value) => !Number.isNaN(value)),
+      features: selectedFeatures,
+      workerCount,
+      priority,
+      owner: user?.username,
+      distribution,
+      duration,
+      scanDelay: scanDelayPayload
+    };
+
+    console.log('[JobForm] Sending request to /api/jobs:', requestBody);
 
     try {
       const response = await fetch('/api/jobs', {
@@ -137,28 +127,9 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
-        body: JSON.stringify({
-          name,
-          summary,
-          target,
-          portRange: {
-            start: Number(portStart) || 1,
-            end: Number(portEnd) || 65535
-          },
-          exceptions: exceptions
-            .split(',')
-            .map((entry) => Number(entry.trim()))
-            .filter((value) => !Number.isNaN(value)),
-          features: selectedFeatures,
-          workerCount,
-          priority,
-          owner: user?.username,
-          distribution,
-          duration,
-          tempo: tempoPayload,
-          tempoSteps: tempoStepsPayload
-        })
+        body: JSON.stringify(requestBody)
       });
+      console.log('[JobForm] Response status:', response.status);
 
       const payload = await response.json().catch(() => null);
       if (!response.ok || !payload) {
@@ -183,11 +154,9 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
       setPriority('medium');
       setDistribution('slice');
       setDuration('continuous');
-      setTempoMin('30');
-      setTempoMax('300');
+      setTempoMin('0.05');
+      setTempoMax('0.15');
       setTempoEnabled(true);
-      setTempoStepsMin('');
-      setTempoStepsMax('');
 
       if (onCreated) {
         await onCreated(createdJob);
@@ -362,6 +331,7 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
               </span>
             </button>
           </div>
+          {/* TODO: Re-enable worker count slider when backend supports worker_count parameter
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label htmlFor="job-workers" className="block text-sm font-medium text-slate-200">
@@ -418,9 +388,10 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
               <span className="text-slate-400">Selectable bar up to max nodes</span>
             </div>
           </div>
+          */}
         </div>
         <div className="space-y-3">
-          <p className="text-sm font-medium text-slate-200">Duration</p>
+          <p className="text-sm font-medium text-slate-200">Run mode</p>
           <div className="grid gap-2 sm:grid-cols-2">
             <button
               type="button"
@@ -454,123 +425,81 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
           <div className="space-y-1">
             <div className="flex items-center justify-between">
               <label htmlFor="tempo-min" className="block text-sm font-medium text-slate-200">
-                Tempo between tests (seconds)
+                Dune sand walking (seconds)
               </label>
-              {duration === 'singlepass' && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    setTempoEnabled((current) => {
-                      const next = !current;
-                      if (next && !tempoMin && !tempoMax) {
-                        setTempoMin('30');
-                        setTempoMax('300');
-                      }
-                      return next;
-                    })
-                  }
-                  aria-pressed={tempoEnabled}
-                  className={`inline-flex items-center gap-1 rounded-full border px-1 py-1 text-xs font-semibold transition ${
-                    tempoEnabled
-                      ? 'border-brand-primary/70 bg-brand-primary/10 text-brand-primary'
-                      : 'border-white/15 bg-slate-900/60 text-slate-300 hover:border-brand-primary/40'
+              <button
+                type="button"
+                onClick={() =>
+                  setTempoEnabled((current) => {
+                    const next = !current;
+                    if (next && !tempoMin && !tempoMax) {
+                      setTempoMin('0.05');
+                      setTempoMax('0.15');
+                    }
+                    return next;
+                  })
+                }
+                aria-pressed={tempoEnabled}
+                className={`inline-flex items-center gap-1 rounded-full border px-1 py-1 text-xs font-semibold transition ${
+                  tempoEnabled
+                    ? 'border-brand-primary/70 bg-brand-primary/10 text-brand-primary'
+                    : 'border-white/15 bg-slate-900/60 text-slate-300 hover:border-brand-primary/40'
+                }`}
+              >
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[11px] ${
+                    tempoEnabled ? 'text-slate-500' : 'bg-white/15 text-slate-100'
                   }`}
                 >
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[11px] ${
-                      tempoEnabled ? 'text-slate-500' : 'bg-white/15 text-slate-100'
-                    }`}
-                  >
-                    Off
-                  </span>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[11px] ${
-                      tempoEnabled ? 'bg-brand-primary text-slate-900' : 'text-slate-500'
-                    }`}
-                  >
-                    On
-                  </span>
-                </button>
-              )}
+                  Off
+                </span>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[11px] ${
+                    tempoEnabled ? 'bg-brand-primary text-slate-900' : 'text-slate-500'
+                  }`}
+                >
+                  On
+                </span>
+              </button>
             </div>
             <p className="text-xs text-slate-400">
-              Optional for single-pass (toggle to enable); required for continuous runs.
+              Toggle to enable randomized delays between port scans.
             </p>
           </div>
           <p className="text-xs text-slate-400">
-            Tempo is the pause duration between step sessions: set a min/max break and each pause is re-randomized inside
-            that window (e.g. 30-300 seconds). Steps define how many tests run in a session before that pause.
+            Random delay between individual port scans for stealth. Like walking on sand dunes — slow and quiet
+            to avoid detection. Disable for fastest (but more detectable) scanning.
           </p>
           <p className="text-[0.75rem] italic text-brand-primary/80">
-            Also known as &quot;Dune sand walking&quot; in memory of Frank Herbert.
+            In memory of Frank Herbert.
           </p>
           <div className="grid gap-4 sm:grid-cols-2">
             <Input
               id="tempo-min"
               type="number"
-              min={1}
-              placeholder="30"
+              min={0}
+              step={0.01}
+              placeholder="0.05"
               value={tempoMin}
               onChange={(event) => setTempoMin(event.target.value)}
               invalid={tempoInvalid}
-              disabled={!tempoFieldsActive}
-              className={!tempoFieldsActive ? 'cursor-not-allowed opacity-50' : undefined}
-              aria-label="Minimum tempo (seconds)"
+              disabled={!tempoEnabled}
+              className={!tempoEnabled ? 'cursor-not-allowed opacity-50' : undefined}
+              aria-label="Minimum delay (seconds)"
             />
             <Input
               id="tempo-max"
               type="number"
-              min={1}
-              placeholder="300"
+              min={0}
+              step={0.01}
+              placeholder="0.15"
               value={tempoMax}
               onChange={(event) => setTempoMax(event.target.value)}
               invalid={tempoInvalid}
-              disabled={!tempoFieldsActive}
-              className={!tempoFieldsActive ? 'cursor-not-allowed opacity-50' : undefined}
-              aria-label="Maximum tempo (seconds)"
+              disabled={!tempoEnabled}
+              className={!tempoEnabled ? 'cursor-not-allowed opacity-50' : undefined}
+              aria-label="Maximum delay (seconds)"
             />
-          </div>
-          <div className="space-y-2 rounded-lg border border-white/15 bg-slate-900/40 p-3">
-            <p className="text-sm font-medium text-slate-200">Tests before pause (steps)</p>
-            <p className="text-xs text-slate-400">
-              Number of test cycles to run before pausing for the next tempo window.
-            </p>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1">
-                <label htmlFor="tempo-steps-min" className="block text-sm font-medium text-slate-200">
-                  Min steps
-                </label>
-                <Input
-                  id="tempo-steps-min"
-                  type="number"
-                  min={1}
-                  placeholder="3"
-                  value={tempoStepsMin}
-                  onChange={(event) => setTempoStepsMin(event.target.value)}
-                  invalid={tempoStepsInvalid}
-                  disabled={!tempoFieldsActive}
-                  className={!tempoFieldsActive ? 'cursor-not-allowed opacity-50' : undefined}
-                  aria-label="Minimum steps before pause"
-                />
-              </div>
-              <div className="space-y-1">
-                <label htmlFor="tempo-steps-max" className="block text-sm font-medium text-slate-200">
-                  Max steps
-                </label>
-                <Input
-                  id="tempo-steps-max"
-                  type="number"
-                  min={1}
-                  placeholder="10"
-                  value={tempoStepsMax}
-                  onChange={(event) => setTempoStepsMax(event.target.value)}
-                  invalid={tempoStepsInvalid}
-                  disabled={!tempoFieldsActive}
-                  className={!tempoFieldsActive ? 'cursor-not-allowed opacity-50' : undefined}
-                  aria-label="Maximum steps before pause"
-                />
-              </div>
-            </div>
           </div>
         </div>
         <div className="space-y-2">
@@ -610,8 +539,7 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
             !summary.trim() ||
             !target.trim() ||
             (Number(portEnd) || 0) < (Number(portStart) || 0) ||
-            tempoInvalid ||
-            tempoStepsInvalid
+            tempoInvalid
           }
         >
           {isSubmitting ? 'Creating...' : 'Create task'}

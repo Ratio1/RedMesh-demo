@@ -21,6 +21,29 @@ jest.mock('@ratio1/edge-sdk-ts', () => {
   };
 });
 
+jest.mock('@/lib/services/redmeshApi', () => {
+  const mockApi = {
+    getFeatureCatalog: jest.fn().mockResolvedValue({
+      catalog: [
+        {
+          id: 'service_info_common',
+          label: 'Service fingerprinting',
+          description: 'Collect banner and version data for common network services.',
+          category: 'service',
+          methods: ['_service_info_80', '_service_info_443']
+        }
+      ],
+      all_methods: ['_service_info_80', '_service_info_443']
+    })
+  };
+
+  return {
+    __esModule: true,
+    getRedMeshApiService: jest.fn(() => mockApi),
+    resetRedMeshApiService: jest.fn()
+  };
+});
+
 const mockedFactory = require('@ratio1/edge-sdk-ts').default as jest.Mock;
 
 describe('config API route', () => {

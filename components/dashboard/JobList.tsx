@@ -1,12 +1,13 @@
 'use client';
 
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import Link from 'next/link';
 import { Job } from '@/lib/api/types';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import { formatDistanceToNow, parseISO } from 'date-fns';
+import { useJobActions } from '@/lib/hooks/useJobActions';
 
 interface JobListProps {
   title: string;
@@ -15,6 +16,7 @@ interface JobListProps {
   emptyState: string;
   emptyAction?: ReactNode;
   bare?: boolean;
+  onJobStopped?: (jobId: string) => void;
 }
 
 function StatusBadge({ status }: { status: Job['status'] }): JSX.Element {
@@ -90,8 +92,38 @@ export default function JobList({
   jobs,
   emptyState,
   emptyAction,
-  bare = false
+  bare = false,
+  onJobStopped
 }: JobListProps): JSX.Element {
+  const { stopJob, loading: actionLoading } = useJobActions();
+  const [stoppingJobId, setStoppingJobId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const handleStopJob = async (job: Job) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to stop the job "${job.displayName}"?\n\nThis action cannot be undone.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setStoppingJobId(job.id);
+    setActionError(null);
+
+    try {
+      await stopJob(job.id);
+      onJobStopped?.(job.id);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to stop job.';
+      setActionError(message);
+      // Show error as alert for now (toast would be better)
+      window.alert(`Error: ${message}`);
+    } finally {
+      setStoppingJobId(null);
+    }
+  };
+
   const content =
     jobs.length === 0 ? (
       <div className="flex items-center justify-between rounded-xl border border-dashed border-white/15 bg-slate-900/50 px-4 py-6 text-sm text-slate-200">
@@ -111,14 +143,22 @@ export default function JobList({
               <div className="flex flex-wrap items-center gap-3">
                 <h3 className="text-lg font-semibold text-slate-100">{job.displayName}</h3>
                 <StatusBadge status={job.status} />
+                <Badge
+                  tone={job.runMode === 'continuous' ? 'warning' : 'neutral'}
+                  label={job.runMode === 'continuous' ? 'Continuous' : 'Single Pass'}
+                />
                 <Badge tone="neutral" label={`Priority: ${job.priority}`} />
                 <Badge tone="neutral" label={`Workers: ${job.workerCount}`} />
+                {job.runMode === 'continuous' && job.currentPass > 1 && (
+                  <Badge tone="success" label={`Pass #${job.currentPass}`} />
+                )}
               </div>
               <p className="text-sm text-slate-300">{job.summary}</p>
               <div className="flex flex-wrap gap-4 text-xs text-slate-400">
-                <span>Target {job.target}</span>
-                <span>Initiator {job.initiator}</span>
-                {job.owner && <span>Owner {job.owner}</span>}
+                <span>Target: {job.target}</span>
+                <span>Ports: {job.portRange.start}-{job.portRange.end}</span>
+                <span>Initiator: {job.initiator}</span>
+                {job.owner && <span>Owner: {job.owner}</span>}
                 <span>Created {formatRelative(job.createdAt)}</span>
                 {job.startedAt && <span>Started {formatRelative(job.startedAt)}</span>}
                 {job.completedAt && <span>Completed {formatRelative(job.completedAt)}</span>}
@@ -155,9 +195,21 @@ export default function JobList({
                     />
                   </div>
                 </div>
-                <Button asChild variant="secondary" size="sm" className="lg:self-end">
-                  <Link href={`/dashboard/tasks/${job.id}`}>View details</Link>
-                </Button>
+                <div className="flex gap-2 lg:self-end">
+                  {(job.status === 'running' || job.status === 'queued') && (
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      onClick={() => handleStopJob(job)}
+                      disabled={stoppingJobId === job.id || actionLoading}
+                    >
+                      {stoppingJobId === job.id ? 'Stopping...' : 'Stop'}
+                    </Button>
+                  )}
+                  <Button asChild variant="secondary" size="sm">
+                    <Link href={`/dashboard/tasks/${job.id}`}>View details</Link>
+                  </Button>
+                </div>
               </div>
             </div>
           </article>
