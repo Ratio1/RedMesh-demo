@@ -15,6 +15,9 @@ import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import type { WorkerReport } from '@/lib/api/types';
 
+const DEFAULT_PORT_START = 1;
+const DEFAULT_PORT_END = 65535;
+
 function formatDate(value?: string): string {
   if (!value) {
     return '--';
@@ -315,7 +318,7 @@ export default function JobDetailsPage(): JSX.Element {
                 label={job.runMode === 'continuous' ? 'Continuous Monitoring' : 'Single Pass'}
               />
               <Badge tone="neutral" label={`${(job.distribution ?? 'slice').toUpperCase()}`} />
-              <Badge tone="neutral" label={`Ports: ${job.portRange.start}-${job.portRange.end}`} />
+              <Badge tone="neutral" label={`Ports: ${job.portRange?.start ?? DEFAULT_PORT_START}-${job.portRange?.end ?? DEFAULT_PORT_END}`} />
             </div>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -461,7 +464,7 @@ export default function JobDetailsPage(): JSX.Element {
               </div>
               <div className="flex items-center justify-between">
                 <dt>Port Range</dt>
-                <dd className="text-slate-100">{job.portRange.start} - {job.portRange.end}</dd>
+                <dd className="text-slate-100">{job.portRange?.start ?? DEFAULT_PORT_START} - {job.portRange?.end ?? DEFAULT_PORT_END}</dd>
               </div>
               <div className="flex items-center justify-between">
                 <dt>Current Pass</dt>
@@ -636,7 +639,6 @@ export default function JobDetailsPage(): JSX.Element {
                     {Object.entries(pass.reports).map(([nodeAddr, cid]) => {
                       const report = reports[cid] as WorkerReport | undefined;
                       const isExpanded = expandedReports.has(cid);
-                      const shortAddr = `${nodeAddr.slice(0, 12)}...${nodeAddr.slice(-8)}`;
 
                       return (
                         <div

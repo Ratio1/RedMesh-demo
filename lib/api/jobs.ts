@@ -360,7 +360,7 @@ function normalizeJobFromSpecs(specs: JobSpecs): Job {
 
   return {
     id: specs.job_id,
-    displayName: specs.task_name || `${specs.target} - ${specs.job_id.slice(0, 8)}`,
+    displayName: specs.task_name || `${specs.target} - ${specs.job_id?.slice(0, 8) ?? 'new'}`,
     target: specs.target,
     initiator: specs.launcher_alias ?? specs.launcher,
     status,
@@ -414,7 +414,7 @@ export function normalizeJobStatusResponse(response: GetJobStatusResponse): Job 
   const baseJob: Partial<Job> = {
     id: response.job_id,
     target: response.target,
-    displayName: `${response.target} - ${response.job_id.slice(0, 8)}`,
+    displayName: `${response.target ?? 'unknown'} - ${response.job_id?.slice(0, 8) ?? 'new'}`,
     summary: 'RedMesh scan job',
     initiator: 'unknown',
     priority: 'medium',
