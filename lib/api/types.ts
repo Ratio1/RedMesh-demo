@@ -137,6 +137,7 @@ export interface CreateJobInput {
   tempo?: JobTempo;
   tempoSteps?: JobTempoSteps;
   scanDelay?: JobTempo;
+  monitorInterval?: number; // Seconds between passes in continuous monitoring mode
 }
 
 export interface UserAccount {

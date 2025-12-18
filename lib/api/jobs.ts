@@ -566,6 +566,7 @@ function createJobInputToLaunchRequest(input: CreateJobInput): LaunchTestRequest
     port_order: 'SEQUENTIAL',
     excluded_features: excludedFeatures?.length ? excludedFeatures : undefined,
     run_mode: input.duration === 'continuous' ? 'CONTINUOUS_MONITORING' : 'SINGLEPASS',
+    monitor_interval: input.duration === 'continuous' ? input.monitorInterval : undefined,
     scan_min_delay: input.scanDelay?.minSeconds,
     scan_max_delay: input.scanDelay?.maxSeconds,
     task_name: input.name || undefined,

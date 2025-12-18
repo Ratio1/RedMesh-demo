@@ -108,6 +108,19 @@ export async function POST(request: Request) {
       ? { minSeconds: scanDelayMin, maxSeconds: scanDelayMax }
       : undefined;
 
+  // Parse monitor interval for continuous monitoring mode
+  const monitorIntervalRaw = body?.monitorInterval ?? body?.monitor_interval;
+  const monitorInterval = monitorIntervalRaw !== undefined && monitorIntervalRaw !== null
+    ? Number(monitorIntervalRaw)
+    : undefined;
+
+  if (duration === 'continuous' && monitorInterval !== undefined && (monitorInterval < 1 || !Number.isInteger(monitorInterval))) {
+    return NextResponse.json(
+      { message: 'Monitor interval must be a positive integer (seconds between passes).' },
+      { status: 400 }
+    );
+  }
+
   const payload: CreateJobInput = {
     name: body.name,
     summary: body.summary,
@@ -124,7 +137,8 @@ export async function POST(request: Request) {
     notes: body.notes,
     distribution,
     duration,
-    scanDelay
+    scanDelay,
+    monitorInterval: duration === 'continuous' ? monitorInterval : undefined
   };
 
   jobsLogger.debug('Calling createJob with payload:', payload);

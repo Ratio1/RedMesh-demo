@@ -48,6 +48,7 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
   const [tempoMin, setTempoMin] = useState<string>('0.05');
   const [tempoMax, setTempoMax] = useState<string>('0.15');
   const [tempoEnabled, setTempoEnabled] = useState<boolean>(true);
+  const [monitorInterval, setMonitorInterval] = useState<string>('60');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -115,7 +116,8 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
       owner: user?.username,
       distribution,
       duration,
-      scanDelay: scanDelayPayload
+      scanDelay: scanDelayPayload,
+      monitorInterval: duration === 'continuous' && monitorInterval ? Number(monitorInterval) : undefined
     };
 
     console.log('[JobForm] Sending request to /api/jobs:', requestBody);
@@ -157,6 +159,7 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
       setTempoMin('0.05');
       setTempoMax('0.15');
       setTempoEnabled(true);
+      setMonitorInterval('60');
 
       if (onCreated) {
         await onCreated(createdJob);
@@ -420,6 +423,26 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
               </span>
             </button>
           </div>
+          {duration === 'continuous' && (
+            <div className="mt-3 space-y-2">
+              <label htmlFor="monitor-interval" className="block text-sm font-medium text-slate-200">
+                Monitor interval (seconds)
+              </label>
+              <p className="text-xs text-slate-400">
+                Time to wait between scan passes. Leave at 0 to use the default configuration.
+              </p>
+              <Input
+                id="monitor-interval"
+                type="number"
+                min={0}
+                step={1}
+                placeholder="60"
+                value={monitorInterval}
+                onChange={(event) => setMonitorInterval(event.target.value)}
+                aria-label="Monitor interval in seconds"
+              />
+            </div>
+          )}
         </div>
         <div className="space-y-3 rounded-xl border border-white/10 bg-slate-900/30 p-4">
           <div className="space-y-1">
