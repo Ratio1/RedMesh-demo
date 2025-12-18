@@ -645,3 +645,66 @@ export async function fetchJobsWithReports(authToken?: string): Promise<{
     throw new ApiError(500, error instanceof Error ? error.message : 'Unable to retrieve jobs from RedMesh.');
   }
 }
+
+/**
+ * Extract CIDs from a single job's pass_history
+ */
+function extractCidsFromJob(job: Job): string[] {
+  const cids: string[] = [];
+  if (job.passHistory) {
+    for (const pass of job.passHistory) {
+      if (pass.reports) {
+        cids.push(...Object.values(pass.reports));
+      }
+    }
+  }
+  return cids;
+}
+
+/**
+ * Fetch a single job with its report content from R1FS.
+ * More efficient than fetching all jobs when you only need one.
+ */
+export async function fetchJobWithReports(jobId: string): Promise<{
+  job: Job;
+  reports: Record<string, Record<string, unknown>>;
+} | null> {
+  const config = getAppConfig();
+
+  if (config.mockMode || config.forceMockTasks) {
+    const mockJobs = getMockJobs();
+    const job = mockJobs.find(j => j.id === jobId);
+    if (!job) return null;
+    return { job, reports: {} };
+  }
+
+  if (!config.redmeshApiUrl) {
+    throw new ApiError(500, 'RedMesh API endpoint is not configured.');
+  }
+
+  try {
+    const api = getRedMeshApiService();
+    const response = await api.getJobStatus(jobId);
+
+    if (response.status === 'not_found') {
+      return null;
+    }
+
+    const job = normalizeJobStatusResponse(response);
+    if (!job) {
+      return null;
+    }
+
+    // Extract CIDs from this job's pass_history and fetch reports
+    const cids = extractCidsFromJob(job);
+    const reports = cids.length > 0 ? await fetchReportsByCids(cids) : {};
+
+    return { job, reports };
+  } catch (error) {
+    console.error(`[fetchJobWithReports] Error fetching job ${jobId}:`, error);
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    throw new ApiError(500, error instanceof Error ? error.message : 'Unable to retrieve job from RedMesh.');
+  }
+}

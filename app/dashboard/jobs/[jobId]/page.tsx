@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import AppShell from '@/components/layout/AppShell';
 import { useAuth } from '@/components/auth/AuthContext';
-import useJobs from '@/lib/hooks/useJobs';
+import useJob from '@/lib/hooks/useJob';
 import { useJobActions } from '@/lib/hooks/useJobActions';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -31,14 +31,39 @@ export default function JobDetailsPage(): JSX.Element {
   const params = useParams<{ jobId: string }>();
   const router = useRouter();
   const { user, loading } = useAuth();
-  const { jobs, reports, refresh, loading: jobsLoading, error: jobsError } = useJobs();
+  const { job, reports, refresh, loading: jobLoading, error: jobError, notFound } = useJob(params.jobId);
   const { stopJob, stopMonitoring, loading: actionLoading } = useJobActions();
   const [stopping, setStopping] = useState(false);
   const [stoppingMonitoring, setStoppingMonitoring] = useState(false);
   const [expandedReports, setExpandedReports] = useState<Set<string>>(new Set());
+  const [portsExpanded, setPortsExpanded] = useState(false);
+
+  // Aggregate all open ports from worker reports
+  const aggregatedPorts = useMemo(() => {
+    const portsSet = new Set<number>();
+    const serviceMap = new Map<number, Record<string, unknown>>();
+
+    Object.values(reports).forEach((report) => {
+      const workerReport = report as WorkerReport;
+      if (workerReport.openPorts && Array.isArray(workerReport.openPorts)) {
+        workerReport.openPorts.forEach((port) => portsSet.add(port));
+      }
+      // Collect service info for each port
+      if (workerReport.serviceInfo && typeof workerReport.serviceInfo === 'object') {
+        Object.entries(workerReport.serviceInfo).forEach(([port, info]) => {
+          const portNum = parseInt(port, 10);
+          if (!isNaN(portNum) && info) {
+            serviceMap.set(portNum, info as Record<string, unknown>);
+          }
+        });
+      }
+    });
+
+    const sortedPorts = Array.from(portsSet).sort((a, b) => a - b);
+    return { ports: sortedPorts, services: serviceMap };
+  }, [reports]);
 
   const handleStopJob = async () => {
-    const job = jobs.find((candidate) => candidate.id === params.jobId);
     if (!job) return;
 
     const confirmed = window.confirm(
@@ -60,7 +85,6 @@ export default function JobDetailsPage(): JSX.Element {
   };
 
   const handleStopMonitoring = async () => {
-    const job = jobs.find((candidate) => candidate.id === params.jobId);
     if (!job) return;
 
     const confirmed = window.confirm(
@@ -160,7 +184,6 @@ export default function JobDetailsPage(): JSX.Element {
 
         Object.entries(pass.reports).forEach(([nodeAddr, cid]) => {
           const report = reports[cid] as WorkerReport | undefined;
-          const shortAddr = `${nodeAddr.slice(0, 20)}...`;
 
           if (report) {
             // Check if we need a new page
@@ -170,7 +193,7 @@ export default function JobDetailsPage(): JSX.Element {
             }
 
             const reportLines = [
-              `Worker Node: ${shortAddr}`,
+              `Worker Node: ${nodeAddr}`,
               `Local Worker ID: ${report.localWorkerId || 'N/A'}`,
               `Target: ${report.target || 'N/A'}`,
               `Port Range: ${report.startPort} - ${report.endPort}`,
@@ -187,7 +210,7 @@ export default function JobDetailsPage(): JSX.Element {
             }
 
             if (report.initiator) {
-              reportLines.push(`Initiator: ${report.initiator.slice(0, 30)}...`);
+              reportLines.push(`Initiator: ${report.initiator}`);
             }
 
             if (report.jobId) {
@@ -230,7 +253,7 @@ export default function JobDetailsPage(): JSX.Element {
               addSection(`  Web Test Results (${Object.keys(report.webTestsInfo).length} tests):`, webLines);
             }
           } else {
-            addSection('Worker Report:', [`Worker Node: ${shortAddr}`, `Report CID: ${cid}`, 'Report data not available']);
+            addSection('Worker Report:', [`Worker Node: ${nodeAddr}`, `Report CID: ${cid}`, 'Report data not available']);
           }
         });
       });
@@ -244,9 +267,7 @@ export default function JobDetailsPage(): JSX.Element {
     return <main className="flex min-h-screen items-center justify-center">Redirecting...</main>;
   }
 
-  const job = jobs.find((candidate) => candidate.id === params.jobId);
-
-  if (jobsLoading) {
+  if (jobLoading) {
     return (
       <AppShell>
         <Card title="Loading task" description="Fetching the latest telemetry from RedMesh." />
@@ -254,10 +275,10 @@ export default function JobDetailsPage(): JSX.Element {
     );
   }
 
-  if (jobsError) {
+  if (jobError) {
     return (
       <AppShell>
-        <Card title="Unable to load task" description={jobsError}>
+        <Card title="Unable to load task" description={jobError}>
           <Button variant="secondary" onClick={() => refresh()}>
             Retry
           </Button>
@@ -266,7 +287,7 @@ export default function JobDetailsPage(): JSX.Element {
     );
   }
 
-  if (!job) {
+  if (notFound || !job) {
     return (
       <AppShell>
         <Card title="Task not found" description="Return to the dashboard to view the latest tasks.">
@@ -469,6 +490,82 @@ export default function JobDetailsPage(): JSX.Element {
                 <dd className="text-slate-100">{job.workerCount}</dd>
               </div>
             </dl>
+          </Card>
+
+          {/* Discovered Open Ports Card */}
+          <Card
+            title="Discovered Open Ports"
+            description={`${aggregatedPorts.ports.length} unique port${aggregatedPorts.ports.length !== 1 ? 's' : ''} found across all workers`}
+            className="lg:col-span-2"
+          >
+            {aggregatedPorts.ports.length === 0 ? (
+              <p className="text-sm text-slate-400">No open ports discovered yet.</p>
+            ) : (
+              <div className="space-y-4">
+                {/* Port Pills */}
+                <div className="flex flex-wrap gap-2">
+                  {(aggregatedPorts.ports.length > 100 && !portsExpanded
+                    ? aggregatedPorts.ports.slice(0, 50)
+                    : aggregatedPorts.ports
+                  ).map((port) => {
+                    const hasService = aggregatedPorts.services.has(port);
+                    return (
+                      <span
+                        key={port}
+                        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium ${
+                          hasService
+                            ? 'bg-emerald-900/40 border border-emerald-500/40 text-emerald-300'
+                            : 'bg-slate-700/50 border border-slate-600/50 text-slate-200'
+                        }`}
+                      >
+                        {port}
+                        {hasService && (
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" title="Service detected" />
+                        )}
+                      </span>
+                    );
+                  })}
+                  {aggregatedPorts.ports.length > 100 && !portsExpanded && (
+                    <span className="inline-flex items-center text-sm text-slate-400">
+                      +{aggregatedPorts.ports.length - 50} more
+                    </span>
+                  )}
+                </div>
+                {aggregatedPorts.ports.length > 100 && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setPortsExpanded(!portsExpanded)}
+                  >
+                    {portsExpanded ? 'Show Less' : `Show All ${aggregatedPorts.ports.length} Ports`}
+                  </Button>
+                )}
+
+                {/* Service Details */}
+                {aggregatedPorts.services.size > 0 && (
+                  <div className="border-t border-white/10 pt-4">
+                    <p className="text-xs uppercase tracking-widest text-slate-400 mb-3">
+                      Detected Services ({aggregatedPorts.services.size})
+                    </p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {Array.from(aggregatedPorts.services.entries()).map(([port, info]) => (
+                        <div
+                          key={port}
+                          className="rounded bg-slate-800/50 border border-white/5 p-3 text-sm"
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="font-semibold text-emerald-400">Port {port}</span>
+                          </div>
+                          <pre className="text-xs text-slate-300 overflow-x-auto whitespace-pre-wrap">
+                            {typeof info === 'object' ? JSON.stringify(info, null, 2) : String(info)}
+                          </pre>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </Card>
         </section>
 

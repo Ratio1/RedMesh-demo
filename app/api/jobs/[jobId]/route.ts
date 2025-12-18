@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { ApiError } from '@/lib/api/errors';
 import { getRedMeshApiService } from '@/lib/services/redmeshApi';
-import { normalizeJobStatusResponse } from '@/lib/api/jobs';
+import { normalizeJobStatusResponse, fetchJobWithReports } from '@/lib/api/jobs';
 
 interface RouteParams {
   params: Promise<{ jobId: string }>;
@@ -10,6 +10,7 @@ interface RouteParams {
 /**
  * GET /api/jobs/[jobId]
  * Retrieve the current status of a specific job.
+ * Add ?includeReports=true to also fetch report content from R1FS.
  */
 export async function GET(request: Request, { params }: RouteParams) {
   const { jobId } = await params;
@@ -18,7 +19,25 @@ export async function GET(request: Request, { params }: RouteParams) {
     return NextResponse.json({ message: 'Job ID is required.' }, { status: 400 });
   }
 
+  const url = new URL(request.url);
+  const includeReports = url.searchParams.get('includeReports') === 'true';
+
   try {
+    if (includeReports) {
+      // Fetch job with report content from R1FS
+      const result = await fetchJobWithReports(jobId);
+
+      if (!result) {
+        return NextResponse.json({ message: `Job ${jobId} not found.` }, { status: 404 });
+      }
+
+      return NextResponse.json({
+        job: result.job,
+        reports: result.reports
+      }, { status: 200 });
+    }
+
+    // Standard job status fetch (without reports)
     const api = getRedMeshApiService();
     const response = await api.getJobStatus(jobId);
 
