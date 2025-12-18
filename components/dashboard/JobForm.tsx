@@ -9,6 +9,12 @@ import { useAuth } from '@/components/auth/AuthContext';
 import { useAppConfig } from '@/components/layout/AppConfigContext';
 import type { Job, JobDistribution, JobDuration } from '@/lib/api/types';
 
+interface NodePeer {
+  id: string;
+  address: string;
+  label: string;
+}
+
 interface JobFormProps {
   onCreated?: (job: Job) => Promise<void> | void;
 }
@@ -49,6 +55,10 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
   const [tempoMax, setTempoMax] = useState<string>('0.15');
   const [tempoEnabled, setTempoEnabled] = useState<boolean>(true);
   const [monitorInterval, setMonitorInterval] = useState<string>('60');
+  const [selectedPeers, setSelectedPeers] = useState<string[]>([]);
+  const [availablePeers, setAvailablePeers] = useState<NodePeer[]>([]);
+  const [peersLoading, setPeersLoading] = useState(true);
+  const peersTouchedRef = useRef(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -69,6 +79,40 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
     setSelectedFeatures(config.featureCatalog.map((feature) => feature.id));
   }, [config?.featureCatalog]);
 
+  // Fetch available peers from /api/nodes (same source as mesh page)
+  useEffect(() => {
+    let cancelled = false;
+    setPeersLoading(true);
+
+    (async () => {
+      try {
+        const response = await fetch('/api/nodes', { cache: 'no-store' });
+        const payload = await response.json().catch(() => null);
+
+        if (cancelled) return;
+
+        if (response.ok && payload?.peers && Array.isArray(payload.peers)) {
+          const fetchedPeers = payload.peers as NodePeer[];
+          setAvailablePeers(fetchedPeers);
+
+          // Auto-select all peers if not touched
+          if (!peersTouchedRef.current) {
+            setSelectedPeers(fetchedPeers.map((p) => p.address));
+          }
+        }
+      } catch (error) {
+        console.error('[JobForm] Failed to fetch peers:', error);
+      } finally {
+        if (!cancelled) {
+          setPeersLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     setWorkerCount((current) => {
@@ -117,7 +161,8 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
       distribution,
       duration,
       scanDelay: scanDelayPayload,
-      monitorInterval: duration === 'continuous' && monitorInterval ? Number(monitorInterval) : undefined
+      monitorInterval: duration === 'continuous' && monitorInterval ? Number(monitorInterval) : undefined,
+      selectedPeers: selectedPeers.length > 0 ? selectedPeers : undefined
     };
 
     console.log('[JobForm] Sending request to /api/jobs:', requestBody);
@@ -160,6 +205,8 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
       setTempoMax('0.15');
       setTempoEnabled(true);
       setMonitorInterval('60');
+      setSelectedPeers(availablePeers.map((p) => p.address));
+      peersTouchedRef.current = false;
 
       if (onCreated) {
         await onCreated(createdJob);
@@ -543,6 +590,92 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
               </button>
             ))}
           </div>
+        </div>
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-slate-200">Worker nodes</p>
+              {availablePeers.length > 0 && (
+                <span className="text-xs text-slate-400">
+                  {selectedPeers.length} of {availablePeers.length} selected
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-slate-400">
+              Select which nodes should run the scan. By default, all nodes are selected.
+            </p>
+          </div>
+          {peersLoading ? (
+            <div className="rounded-xl border border-white/10 bg-slate-900/30 p-4 text-center">
+              <p className="text-sm text-slate-400">Loading worker nodes...</p>
+            </div>
+          ) : availablePeers.length > 0 ? (
+            <>
+              <div className="flex gap-2 mb-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    peersTouchedRef.current = true;
+                    setSelectedPeers(availablePeers.map((p) => p.address));
+                  }}
+                  className="text-xs text-brand-primary hover:text-brand-primary/80 transition"
+                >
+                  Select all
+                </button>
+                <span className="text-slate-600">|</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    peersTouchedRef.current = true;
+                    setSelectedPeers([]);
+                  }}
+                  className="text-xs text-slate-400 hover:text-slate-300 transition"
+                >
+                  Clear all
+                </button>
+              </div>
+              <div className="grid gap-2 max-h-48 overflow-y-auto rounded-xl border border-white/10 bg-slate-900/30 p-3">
+                {availablePeers.map((peer) => {
+                  const active = selectedPeers.includes(peer.address);
+                  // Use label if available, otherwise shorten the address
+                  const displayName = peer.label || (peer.address.length > 30
+                    ? `${peer.address.slice(0, 15)}...${peer.address.slice(-12)}`
+                    : peer.address);
+                  return (
+                    <button
+                      key={peer.address}
+                      type="button"
+                      onClick={() => {
+                        peersTouchedRef.current = true;
+                        setSelectedPeers((current) =>
+                          active
+                            ? current.filter((item) => item !== peer.address)
+                            : [...current, peer.address]
+                        );
+                      }}
+                      className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition ${
+                        active
+                          ? 'border-brand-primary/60 bg-brand-primary/15 text-slate-100'
+                          : 'border-white/10 bg-slate-900/40 text-slate-400 hover:border-brand-primary/40 hover:text-slate-200'
+                      }`}
+                      title={peer.address}
+                    >
+                      <span className="text-xs">{displayName}</span>
+                      {active && (
+                        <span className="ml-2 text-xs uppercase text-brand-primary">Selected</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <div className="rounded-xl border border-white/10 bg-slate-900/30 p-4 text-center">
+              <p className="text-sm text-slate-400">
+                No worker nodes configured. All available nodes will be used.
+              </p>
+            </div>
+          )}
         </div>
         {successMessage && (
           <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-4 py-3 text-sm text-emerald-100">

@@ -570,7 +570,8 @@ function createJobInputToLaunchRequest(input: CreateJobInput): LaunchTestRequest
     scan_min_delay: input.scanDelay?.minSeconds,
     scan_max_delay: input.scanDelay?.maxSeconds,
     task_name: input.name || undefined,
-    task_description: input.summary || undefined
+    task_description: input.summary || undefined,
+    selected_peers: input.selectedPeers?.length ? input.selectedPeers : undefined
   };
 }
 

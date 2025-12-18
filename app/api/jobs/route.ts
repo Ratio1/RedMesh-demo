@@ -121,6 +121,11 @@ export async function POST(request: Request) {
     );
   }
 
+  // Parse selected peers
+  const selectedPeers: string[] | undefined = Array.isArray(body.selectedPeers)
+    ? body.selectedPeers.filter((value: unknown) => typeof value === 'string' && value.trim())
+    : undefined;
+
   const payload: CreateJobInput = {
     name: body.name,
     summary: body.summary,
@@ -138,7 +143,8 @@ export async function POST(request: Request) {
     distribution,
     duration,
     scanDelay,
-    monitorInterval: duration === 'continuous' ? monitorInterval : undefined
+    monitorInterval: duration === 'continuous' ? monitorInterval : undefined,
+    selectedPeers
   };
 
   jobsLogger.debug('Calling createJob with payload:', payload);

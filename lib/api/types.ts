@@ -138,6 +138,7 @@ export interface CreateJobInput {
   tempoSteps?: JobTempoSteps;
   scanDelay?: JobTempo;
   monitorInterval?: number; // Seconds between passes in continuous monitoring mode
+  selectedPeers?: string[]; // List of peer addresses to run the test on
 }
 
 export interface UserAccount {

@@ -33,6 +33,7 @@ export interface LaunchTestRequest {
   scan_max_delay?: number;
   task_name?: string;
   task_description?: string;
+  selected_peers?: string[];
 }
 
 // Worker Assignment
