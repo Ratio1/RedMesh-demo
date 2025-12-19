@@ -93,6 +93,7 @@ export function AppConfigProvider({ children }: PropsWithChildren<{}>): JSX.Elem
 
       const payload = await response.json();
       if (payload?.peers && Array.isArray(payload.peers)) {
+        console.log('Fetched peers:', payload.peers);
         // Map to our NodePeer type (without kind field)
         const mappedPeers: NodePeer[] = payload.peers.map((p: Record<string, unknown>) => ({
           id: String(p.id ?? ''),

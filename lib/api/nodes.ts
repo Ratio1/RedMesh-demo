@@ -242,38 +242,21 @@ function locatePeer(address: string, nodeRecord?: any): { lat: number; lng: numb
 
 function buildPeerList(
   peers: string[],
-  hostId?: string,
-  hostAddr?: string,
   nodeMap?: Record<string, any>
 ): NodePeer[] {
-  const entries: NodePeer[] = [];
-
-  if (hostAddr || hostId) {
-    const addr = hostAddr ?? hostId ?? 'host';
-    const nodeRecord = nodeMap?.[addr];
-    const coords = locatePeer(addr, nodeRecord);
-    entries.push({
-      id: hostId ?? addr,
-      label: hostId ?? 'Host',
-      address: addr,
-      kind: 'host',
-      ...coords
-    });
-  }
-
-  peers.forEach((peer) => {
+  return peers.map((peer) => {
     const nodeRecord = nodeMap?.[peer];
     const coords = locatePeer(peer, nodeRecord);
-    entries.push({
+    // Use alias from node record if available
+    const label = nodeRecord?.node_alias || peer;
+    return {
       id: peer,
-      label: peer,
+      label,
       address: peer,
-      kind: 'peer',
+      kind: 'peer' as const,
       ...coords
-    });
+    };
   });
-
-  return entries;
 }
 
 function computeStatsFromNodes(nodes: Record<string, any>): NodeCountryStat[] {
@@ -360,21 +343,21 @@ export async function getNodeGeoData(): Promise<NodeGeoResponse> {
       console.log('[getNodeGeoData] ✗ Oracle API not configured or no peers');
     }
 
-    const peers = buildPeerList(config.chainstorePeers, config.hostId, config.hostAddr, peerRecords);
+    const peers = buildPeerList(config.chainstorePeers, peerRecords);
     const geoJson = buildPeerGeo(peers);
 
     // Set source to 'live' only if we successfully fetched peer records
     const source = config.oraclesApiUrl && Object.keys(peerRecords).length > 0 ? 'live' : 'mock';
 
     console.log('\n╔════════════════════════════════════════════════════════════════╗');
-    console.log(`║  RESULT: ${Object.keys(peerRecords).length} peer records | Source: ${source.toUpperCase()}  ║`);
+    console.log(`║  RESULT: ${peers.length} peers | Source: ${source.toUpperCase()}  ║`);
     console.log('╚════════════════════════════════════════════════════════════════╝\n');
 
     return { stats, geoJson, source, peers };
   } catch (error) {
     // Fall back to empty data when live retrieval fails
     console.error('\n[getNodeGeoData] ✗ ERROR:', error);
-    const peers = buildPeerList(config.chainstorePeers, config.hostId, config.hostAddr);
+    const peers = buildPeerList(config.chainstorePeers);
     return { stats: [], geoJson: buildPeerGeo(peers), source: 'mock', peers };
   }
 }

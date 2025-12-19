@@ -76,6 +76,8 @@ function buildRedmeshApiUrl(): string | undefined {
 }
 
 function resolveConfig(): AppRuntimeConfig {
+  console.log('Resolving application runtime configuration from environment variables.');
+  console.log(process.env)
   // Prefer edge host + port to build the RedMesh URL; allow legacy variables as fallbacks.
   const redmeshApiUrl = buildRedmeshApiUrl();
   const oraclesApiUrl = normalizeUrl(
@@ -94,7 +96,7 @@ function resolveConfig(): AppRuntimeConfig {
   const adminUsername = (process.env.ADMIN_USERNAME ?? 'admin').trim();
   const adminPassword = (process.env.ADMIN_PASSWORD ?? 'admin123').trim();
   const chainstorePeers = parsePeerList(
-    process.env.EE_CHAINSTORE_PEERS || process.env.CHAINSTORE_PEERS
+      process.env.R1EN_CHAINSTORE_PEERS || process.env.EE_CHAINSTORE_PEERS || process.env.CHAINSTORE_PEERS
   );
   const coerceBoolean = (raw: string | undefined | null, defaultValue: boolean) => {
     if (raw === undefined || raw === null) {
@@ -164,6 +166,7 @@ export function resetAppConfigCache(): void {
 
 export function getSwaggerUrl(): string | undefined {
   const config = getAppConfig();
+  console.log(config)
   if (!config.redmeshApiUrl) {
     return undefined;
   }
