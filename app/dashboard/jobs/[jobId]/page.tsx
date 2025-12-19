@@ -41,6 +41,8 @@ export default function JobDetailsPage(): JSX.Element {
   const [expandedReports, setExpandedReports] = useState<Set<string>>(new Set());
   const [portsExpanded, setPortsExpanded] = useState(false);
   const [expandedTests, setExpandedTests] = useState<Set<string>>(new Set());
+  const [expandedFeatures, setExpandedFeatures] = useState(false);
+  const [expandedResults, setExpandedResults] = useState<Set<string>>(new Set());
 
   // Aggregate all open ports from worker reports
   const aggregatedPorts = useMemo(() => {
@@ -1184,7 +1186,7 @@ export default function JobDetailsPage(): JSX.Element {
                   Enabled Features ({job.featureSet.length})
                 </p>
                 <div className="flex flex-wrap gap-1">
-                  {job.featureSet.slice(0, 10).map((feature) => (
+                  {(expandedFeatures ? job.featureSet : job.featureSet.slice(0, 10)).map((feature) => (
                     <span
                       key={feature}
                       className="rounded bg-emerald-900/30 border border-emerald-500/30 px-2 py-0.5 text-xs text-emerald-300"
@@ -1193,7 +1195,12 @@ export default function JobDetailsPage(): JSX.Element {
                     </span>
                   ))}
                   {job.featureSet.length > 10 && (
-                    <span className="text-xs text-slate-500">+{job.featureSet.length - 10} more</span>
+                    <button
+                      onClick={() => setExpandedFeatures(!expandedFeatures)}
+                      className="text-xs text-emerald-400 hover:text-emerald-300 hover:underline cursor-pointer transition-colors"
+                    >
+                      {expandedFeatures ? 'Show less' : `+${job.featureSet.length - 10} more`}
+                    </button>
                   )}
                 </div>
               </div>
@@ -1366,6 +1373,9 @@ export default function JobDetailsPage(): JSX.Element {
                                 const resultStr = String(result);
                                 const isVulnerability = resultStr.includes('VULNERABILITY');
                                 const isError = resultStr.includes('failed') || resultStr.includes('timed out');
+                                const resultKey = `service-${worker.id}-${port}-${probeName}`;
+                                const isExpanded = expandedResults.has(resultKey);
+                                const needsExpand = resultStr.length > 150;
                                 return (
                                   <div
                                     key={probeName}
@@ -1385,8 +1395,24 @@ export default function JobDetailsPage(): JSX.Element {
                                     <span className={`${
                                       isVulnerability ? 'text-amber-200' : isError ? 'text-slate-500' : 'text-slate-400'
                                     }`}>
-                                      {resultStr.length > 150 ? `${resultStr.slice(0, 150)}...` : resultStr}
+                                      {needsExpand && !isExpanded ? `${resultStr.slice(0, 150)}` : resultStr}
                                     </span>
+                                    {needsExpand && (
+                                      <button
+                                        onClick={() => {
+                                          const newSet = new Set(expandedResults);
+                                          if (isExpanded) {
+                                            newSet.delete(resultKey);
+                                          } else {
+                                            newSet.add(resultKey);
+                                          }
+                                          setExpandedResults(newSet);
+                                        }}
+                                        className="ml-1 text-emerald-400 hover:text-emerald-300 hover:underline transition-colors"
+                                      >
+                                        {isExpanded ? 'Show less' : '...Show more'}
+                                      </button>
+                                    )}
                                   </div>
                                 );
                               })}
@@ -1415,6 +1441,9 @@ export default function JobDetailsPage(): JSX.Element {
                                 const resultStr = String(result);
                                 const isError = resultStr.startsWith('ERROR:');
                                 const isVulnerable = resultStr.includes('VULNERABLE') || resultStr.includes('vulnerability');
+                                const resultKey = `web-${worker.id}-${port}-${testName}`;
+                                const isExpanded = expandedResults.has(resultKey);
+                                const needsExpand = resultStr.length > 150;
                                 return (
                                   <div
                                     key={testName}
@@ -1434,8 +1463,24 @@ export default function JobDetailsPage(): JSX.Element {
                                     <span className={`${
                                       isVulnerable ? 'text-rose-200' : isError ? 'text-slate-500' : 'text-slate-400'
                                     }`}>
-                                      {resultStr.length > 150 ? `${resultStr.slice(0, 150)}...` : resultStr}
+                                      {needsExpand && !isExpanded ? `${resultStr.slice(0, 150)}` : resultStr}
                                     </span>
+                                    {needsExpand && (
+                                      <button
+                                        onClick={() => {
+                                          const newSet = new Set(expandedResults);
+                                          if (isExpanded) {
+                                            newSet.delete(resultKey);
+                                          } else {
+                                            newSet.add(resultKey);
+                                          }
+                                          setExpandedResults(newSet);
+                                        }}
+                                        className="ml-1 text-blue-400 hover:text-blue-300 hover:underline transition-colors"
+                                      >
+                                        {isExpanded ? 'Show less' : '...Show more'}
+                                      </button>
+                                    )}
                                   </div>
                                 );
                               })}

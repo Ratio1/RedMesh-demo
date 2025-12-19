@@ -9,12 +9,6 @@ import { useAuth } from '@/components/auth/AuthContext';
 import { useAppConfig } from '@/components/layout/AppConfigContext';
 import type { Job, JobDistribution, JobDuration } from '@/lib/api/types';
 
-interface NodePeer {
-  id: string;
-  address: string;
-  label: string;
-}
-
 interface JobFormProps {
   onCreated?: (job: Job) => Promise<void> | void;
 }
@@ -28,9 +22,9 @@ const priorities = [
 
 export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
   const { token, user } = useAuth();
-  const { config, loading: configLoading } = useAppConfig();
+  const { config, loading: configLoading, peers, peersLoading } = useAppConfig();
   const featureCatalog = config?.featureCatalog ?? [];
-  const peersCount = config?.chainstorePeers?.length ?? 0;
+  const peersCount = peers.length;
   const computedMaxWorkers = config
     ? config.mockMode
       ? 100
@@ -56,9 +50,8 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
   const [tempoEnabled, setTempoEnabled] = useState<boolean>(true);
   const [monitorInterval, setMonitorInterval] = useState<string>('60');
   const [selectedPeers, setSelectedPeers] = useState<string[]>([]);
-  const [availablePeers, setAvailablePeers] = useState<NodePeer[]>([]);
-  const [peersLoading, setPeersLoading] = useState(true);
   const peersTouchedRef = useRef(false);
+  const [expandedFeatures, setExpandedFeatures] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -79,40 +72,12 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
     setSelectedFeatures(config.featureCatalog.map((feature) => feature.id));
   }, [config?.featureCatalog]);
 
-  // Fetch available peers from /api/nodes (same source as mesh page)
+  // Auto-select all peers when they load from context
   useEffect(() => {
-    let cancelled = false;
-    setPeersLoading(true);
-
-    (async () => {
-      try {
-        const response = await fetch('/api/nodes', { cache: 'no-store' });
-        const payload = await response.json().catch(() => null);
-
-        if (cancelled) return;
-
-        if (response.ok && payload?.peers && Array.isArray(payload.peers)) {
-          const fetchedPeers = payload.peers as NodePeer[];
-          setAvailablePeers(fetchedPeers);
-
-          // Auto-select all peers if not touched
-          if (!peersTouchedRef.current) {
-            setSelectedPeers(fetchedPeers.map((p) => p.address));
-          }
-        }
-      } catch (error) {
-        console.error('[JobForm] Failed to fetch peers:', error);
-      } finally {
-        if (!cancelled) {
-          setPeersLoading(false);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    if (peers.length > 0 && !peersTouchedRef.current) {
+      setSelectedPeers(peers.map((p) => p.address));
+    }
+  }, [peers]);
 
   useEffect(() => {
     setWorkerCount((current) => {
@@ -205,7 +170,7 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
       setTempoMax('0.15');
       setTempoEnabled(true);
       setMonitorInterval('60');
-      setSelectedPeers(availablePeers.map((p) => p.address));
+      setSelectedPeers(peers.map((p) => p.address));
       peersTouchedRef.current = false;
 
       if (onCreated) {
@@ -312,11 +277,39 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
         </div>
         <div className="space-y-3">
           <div className="space-y-1">
-            <p className="text-sm font-medium text-slate-200">Tests</p>
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-slate-200">Tests</p>
+              <span className="text-xs text-slate-400">
+                {selectedFeatures.length} of {featureCatalog.length} enabled
+              </span>
+            </div>
             <p className="text-xs text-slate-400">All test modules are enabled by default.</p>
           </div>
+          <div className="flex gap-2 mb-2">
+            <button
+              type="button"
+              onClick={() => {
+                featuresTouchedRef.current = true;
+                setSelectedFeatures(featureCatalog.map((f) => f.id));
+              }}
+              className="text-xs text-brand-primary hover:text-brand-primary/80 transition"
+            >
+              Enable all
+            </button>
+            <span className="text-slate-600">|</span>
+            <button
+              type="button"
+              onClick={() => {
+                featuresTouchedRef.current = true;
+                setSelectedFeatures([]);
+              }}
+              className="text-xs text-slate-400 hover:text-slate-300 transition"
+            >
+              Disable all
+            </button>
+          </div>
           <div className="grid gap-2">
-            {featureCatalog.map((feature) => {
+            {(expandedFeatures ? featureCatalog : featureCatalog.slice(0, 3)).map((feature) => {
               const active = selectedFeatures.includes(feature.id);
               return (
                 <button
@@ -345,6 +338,15 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
               );
             })}
           </div>
+          {featureCatalog.length > 3 && (
+            <button
+              type="button"
+              onClick={() => setExpandedFeatures((prev) => !prev)}
+              className="w-full rounded-xl border border-white/10 bg-slate-900/40 px-4 py-2 text-sm text-slate-300 hover:border-brand-primary/40 hover:text-slate-100 transition"
+            >
+              {expandedFeatures ? 'Show less' : `+${featureCatalog.length - 3} more tests`}
+            </button>
+          )}
         </div>
         <div className="space-y-3">
           <div className="space-y-1">
@@ -595,9 +597,9 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
           <div className="space-y-1">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium text-slate-200">Worker nodes</p>
-              {availablePeers.length > 0 && (
+              {peers.length > 0 && (
                 <span className="text-xs text-slate-400">
-                  {selectedPeers.length} of {availablePeers.length} selected
+                  {selectedPeers.length} of {peers.length} selected
                 </span>
               )}
             </div>
@@ -609,14 +611,14 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
             <div className="rounded-xl border border-white/10 bg-slate-900/30 p-4 text-center">
               <p className="text-sm text-slate-400">Loading worker nodes...</p>
             </div>
-          ) : availablePeers.length > 0 ? (
+          ) : peers.length > 0 ? (
             <>
               <div className="flex gap-2 mb-2">
                 <button
                   type="button"
                   onClick={() => {
                     peersTouchedRef.current = true;
-                    setSelectedPeers(availablePeers.map((p) => p.address));
+                    setSelectedPeers(peers.map((p) => p.address));
                   }}
                   className="text-xs text-brand-primary hover:text-brand-primary/80 transition"
                 >
@@ -635,7 +637,7 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
                 </button>
               </div>
               <div className="grid gap-2 max-h-48 overflow-y-auto rounded-xl border border-white/10 bg-slate-900/30 p-3">
-                {availablePeers.map((peer) => {
+                {peers.map((peer) => {
                   const active = selectedPeers.includes(peer.address);
                   // Use label if available, otherwise shorten the address
                   const displayName = peer.label || (peer.address.length > 30
