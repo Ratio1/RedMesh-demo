@@ -2,16 +2,12 @@
 
 import 'maplibre-gl/dist/maplibre-gl.css';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import {
-  Layer,
-  LayerProps,
   NavigationControl,
-  Source,
   Marker,
 } from 'react-map-gl/maplibre';
-import type { FeatureCollection, Point } from 'geojson';
 import type { NodePeer } from '@/components/layout/AppConfigContext';
 
 // Dynamically import Map to avoid SSR issues
@@ -27,51 +23,13 @@ interface NodeMapSelectorProps {
   onTouched?: () => void;
 }
 
-// Layer styles for selected nodes
-const selectedNodeLayer: LayerProps = {
-  id: 'selected-nodes',
-  type: 'circle',
-  source: 'selected-nodes',
-  paint: {
-    'circle-color': '#d62828',
-    'circle-radius': 12,
-    'circle-stroke-color': '#ff4444',
-    'circle-stroke-width': 3,
-    'circle-blur': 0.1,
-  },
-};
-
-const selectedNodeGlowLayer: LayerProps = {
-  id: 'selected-node-glow',
-  type: 'circle',
-  source: 'selected-nodes',
-  paint: {
-    'circle-color': '#ff174f',
-    'circle-opacity': 0.5,
-    'circle-radius': 24,
-    'circle-blur': 1,
-  },
-};
-
-// Layer styles for unselected nodes
-const unselectedNodeLayer: LayerProps = {
-  id: 'unselected-nodes',
-  type: 'circle',
-  source: 'unselected-nodes',
-  paint: {
-    'circle-color': '#475569',
-    'circle-radius': 8,
-    'circle-stroke-color': '#64748b',
-    'circle-stroke-width': 2,
-    'circle-blur': 0.1,
-  },
-};
-
-type HoverInfo = {
-  peer: NodePeer;
-  x: number;
-  y: number;
-};
+interface NodeCluster {
+  key: string;
+  country: string;
+  lat: number;
+  lng: number;
+  nodes: NodePeer[];
+}
 
 export default function NodeMapSelector({
   peers,
@@ -80,52 +38,53 @@ export default function NodeMapSelector({
   onTouched,
 }: NodeMapSelectorProps): JSX.Element {
   const [mapError, setMapError] = useState(false);
-  const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
 
-  // Create GeoJSON for selected nodes
-  const selectedGeoJson = useMemo<FeatureCollection<Point, { address: string; label: string }>>(() => {
-    const features = peers
-      .filter((p) => selectedPeers.includes(p.address))
-      .map((peer) => ({
-        type: 'Feature' as const,
-        properties: {
-          address: peer.address,
-          label: peer.label,
-        },
-        geometry: {
-          type: 'Point' as const,
-          coordinates: [peer.lng, peer.lat],
-        },
-      }));
+  // Group nodes by country/location
+  const clusters = useMemo<NodeCluster[]>(() => {
+    const grouped: Record<string, NodeCluster> = {};
 
-    return {
-      type: 'FeatureCollection',
-      features,
-    };
-  }, [peers, selectedPeers]);
+    peers.forEach((peer) => {
+      const key = peer.country || `${peer.lat.toFixed(2)},${peer.lng.toFixed(2)}`;
+      if (!grouped[key]) {
+        grouped[key] = {
+          key,
+          country: peer.country || 'Unknown',
+          lat: peer.lat,
+          lng: peer.lng,
+          nodes: [],
+        };
+      }
+      grouped[key].nodes.push(peer);
+    });
 
-  // Create GeoJSON for unselected nodes
-  const unselectedGeoJson = useMemo<FeatureCollection<Point, { address: string; label: string }>>(() => {
-    const features = peers
-      .filter((p) => !selectedPeers.includes(p.address))
-      .map((peer) => ({
-        type: 'Feature' as const,
-        properties: {
-          address: peer.address,
-          label: peer.label,
-        },
-        geometry: {
-          type: 'Point' as const,
-          coordinates: [peer.lng, peer.lat],
-        },
-      }));
+    return Object.values(grouped);
+  }, [peers]);
 
-    return {
-      type: 'FeatureCollection',
-      features,
-    };
-  }, [peers, selectedPeers]);
+  // Add one node from cluster to selection
+  const handleAddOne = useCallback(
+    (cluster: NodeCluster) => {
+      onTouched?.();
+      const unselectedNode = cluster.nodes.find((n) => !selectedPeers.includes(n.address));
+      if (unselectedNode) {
+        onSelectionChange([...selectedPeers, unselectedNode.address]);
+      }
+    },
+    [selectedPeers, onSelectionChange, onTouched]
+  );
 
+  // Remove one node from cluster selection
+  const handleRemoveOne = useCallback(
+    (cluster: NodeCluster) => {
+      onTouched?.();
+      const selectedNode = cluster.nodes.find((n) => selectedPeers.includes(n.address));
+      if (selectedNode) {
+        onSelectionChange(selectedPeers.filter((addr) => addr !== selectedNode.address));
+      }
+    },
+    [selectedPeers, onSelectionChange, onTouched]
+  );
+
+  // Toggle single node
   const handleNodeClick = useCallback(
     (peer: NodePeer) => {
       onTouched?.();
@@ -140,8 +99,10 @@ export default function NodeMapSelector({
   );
 
   // Calculate map bounds to fit all peers
-  const bounds = useMemo(() => {
-    if (peers.length === 0) return null;
+  const initialViewState = useMemo(() => {
+    if (peers.length === 0) {
+      return { latitude: 20, longitude: 10, zoom: 1.5 };
+    }
 
     let minLng = Infinity;
     let maxLng = -Infinity;
@@ -155,39 +116,21 @@ export default function NodeMapSelector({
       maxLat = Math.max(maxLat, peer.lat);
     });
 
-    // Add padding
-    const lngPadding = Math.max((maxLng - minLng) * 0.2, 10);
-    const latPadding = Math.max((maxLat - minLat) * 0.2, 10);
-
-    return {
-      minLng: minLng - lngPadding,
-      maxLng: maxLng + lngPadding,
-      minLat: minLat - latPadding,
-      maxLat: maxLat + latPadding,
-    };
-  }, [peers]);
-
-  const initialViewState = useMemo(() => {
-    if (!bounds) {
-      return { latitude: 20, longitude: 10, zoom: 1.5 };
-    }
-
-    const centerLng = (bounds.minLng + bounds.maxLng) / 2;
-    const centerLat = (bounds.minLat + bounds.maxLat) / 2;
-
-    // Calculate appropriate zoom level
-    const lngDiff = bounds.maxLng - bounds.minLng;
-    const latDiff = bounds.maxLat - bounds.minLat;
+    const centerLng = (minLng + maxLng) / 2;
+    const centerLat = (minLat + maxLat) / 2;
+    const lngDiff = maxLng - minLng;
+    const latDiff = maxLat - minLat;
     const maxDiff = Math.max(lngDiff, latDiff);
 
     let zoom = 1.5;
-    if (maxDiff < 10) zoom = 5;
+    if (maxDiff < 5) zoom = 6;
+    else if (maxDiff < 10) zoom = 5;
     else if (maxDiff < 30) zoom = 4;
     else if (maxDiff < 60) zoom = 3;
     else if (maxDiff < 120) zoom = 2;
 
     return { latitude: centerLat, longitude: centerLng, zoom };
-  }, [bounds]);
+  }, [peers]);
 
   if (peers.length === 0) {
     return (
@@ -201,13 +144,10 @@ export default function NodeMapSelector({
     <div className="space-y-3">
       {/* Selection info */}
       <div className="flex items-center justify-between text-xs text-slate-400">
-        <span>Click on nodes to select/deselect them</span>
+        <span>Use +/- to add or remove nodes</span>
         <span>
           <span className="inline-block w-3 h-3 rounded-full bg-red-500 mr-1 align-middle" />
-          Selected ({selectedPeers.length})
-          <span className="mx-2">|</span>
-          <span className="inline-block w-3 h-3 rounded-full bg-slate-500 mr-1 align-middle" />
-          Unselected ({peers.length - selectedPeers.length})
+          Selected ({selectedPeers.length}/{peers.length})
         </span>
       </div>
 
@@ -226,75 +166,120 @@ export default function NodeMapSelector({
             onError={() => setMapError(true)}
             mapLib={import('maplibre-gl')}
             attributionControl={false}
-            interactiveLayerIds={['selected-nodes', 'unselected-nodes']}
-            onClick={(event) => {
-              const feature = event.features?.[0];
-              if (feature) {
-                const address = feature.properties?.address as string;
-                const peer = peers.find((p) => p.address === address);
-                if (peer) {
-                  handleNodeClick(peer);
-                }
-              }
-            }}
-            onMouseMove={(event) => {
-              const feature = event.features?.[0];
-              if (feature) {
-                const address = feature.properties?.address as string;
-                const peer = peers.find((p) => p.address === address);
-                if (peer) {
-                  setHoverInfo({
-                    peer,
-                    x: event.point.x,
-                    y: event.point.y,
-                  });
-                }
-              } else {
-                setHoverInfo(null);
-              }
-            }}
-            onMouseLeave={() => setHoverInfo(null)}
-            cursor={hoverInfo ? 'pointer' : 'grab'}
           >
             <NavigationControl position="top-left" />
 
-            {/* Unselected nodes layer */}
-            <Source id="unselected-nodes" type="geojson" data={unselectedGeoJson}>
-              <Layer {...unselectedNodeLayer} />
-            </Source>
+            {/* Render clusters */}
+            {clusters.map((cluster) => {
+              const selectedCount = cluster.nodes.filter((n) => selectedPeers.includes(n.address)).length;
+              const totalCount = cluster.nodes.length;
+              const allSelected = selectedCount === totalCount;
+              const noneSelected = selectedCount === 0;
 
-            {/* Selected nodes layers (glow + main) */}
-            <Source id="selected-nodes" type="geojson" data={selectedGeoJson}>
-              <Layer {...selectedNodeGlowLayer} />
-              <Layer {...selectedNodeLayer} />
-            </Source>
+              if (totalCount === 1) {
+                // Single node - simple toggle button
+                const node = cluster.nodes[0];
+                const isSelected = selectedPeers.includes(node.address);
+
+                return (
+                  <Marker
+                    key={node.address}
+                    latitude={node.lat}
+                    longitude={node.lng}
+                    anchor="center"
+                  >
+                    <div className="flex flex-col items-center">
+                      <button
+                        type="button"
+                        onClick={() => handleNodeClick(node)}
+                        className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all hover:scale-110 ${
+                          isSelected
+                            ? 'bg-red-500 border-red-400 shadow-lg shadow-red-500/50'
+                            : 'bg-slate-600 border-slate-500 hover:bg-slate-500'
+                        }`}
+                        title={`${node.label} - Click to ${isSelected ? 'deselect' : 'select'}`}
+                      >
+                        {isSelected ? (
+                          <span className="text-white text-xs">✓</span>
+                        ) : (
+                          <span className="text-white text-[10px]">1</span>
+                        )}
+                      </button>
+                      <div className="mt-1 text-[9px] text-slate-400 whitespace-nowrap">
+                        {cluster.country}
+                      </div>
+                    </div>
+                  </Marker>
+                );
+              }
+
+              // Multi-node cluster with +/- controls
+              return (
+                <Marker
+                  key={cluster.key}
+                  latitude={cluster.lat}
+                  longitude={cluster.lng}
+                  anchor="center"
+                >
+                  <div className="flex flex-col items-center">
+                    <div className="flex items-center">
+                      {/* Minus button */}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveOne(cluster)}
+                        disabled={noneSelected}
+                        className={`flex items-center justify-center w-7 h-7 rounded-l-full border-2 border-r-0 transition-all ${
+                          noneSelected
+                            ? 'bg-slate-700 border-slate-600 text-slate-500 cursor-not-allowed'
+                            : 'bg-slate-600 border-slate-500 text-white hover:bg-red-600 hover:border-red-500'
+                        }`}
+                        title="Remove one node from selection"
+                      >
+                        <span className="text-sm font-bold leading-none">−</span>
+                      </button>
+
+                      {/* Count display */}
+                      <div
+                        className={`flex items-center justify-center h-7 px-2 border-y-2 text-xs font-bold min-w-[40px] ${
+                          allSelected
+                            ? 'bg-red-500 border-red-400 text-white'
+                            : noneSelected
+                            ? 'bg-slate-700 border-slate-600 text-slate-300'
+                            : 'bg-amber-500 border-amber-400 text-white'
+                        }`}
+                        title={`${selectedCount} of ${totalCount} nodes selected in ${cluster.country}`}
+                      >
+                        {selectedCount}/{totalCount}
+                      </div>
+
+                      {/* Plus button */}
+                      <button
+                        type="button"
+                        onClick={() => handleAddOne(cluster)}
+                        disabled={allSelected}
+                        className={`flex items-center justify-center w-7 h-7 rounded-r-full border-2 border-l-0 transition-all ${
+                          allSelected
+                            ? 'bg-slate-700 border-slate-600 text-slate-500 cursor-not-allowed'
+                            : 'bg-slate-600 border-slate-500 text-white hover:bg-green-600 hover:border-green-500'
+                        }`}
+                        title="Add one node to selection"
+                      >
+                        <span className="text-sm font-bold leading-none">+</span>
+                      </button>
+                    </div>
+
+                    {/* Country label */}
+                    <div className="mt-1 text-[9px] text-slate-400 whitespace-nowrap">
+                      {cluster.country}
+                    </div>
+                  </div>
+                </Marker>
+              );
+            })}
           </Map>
 
           {/* Gradient overlay */}
           <div className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-b from-slate-950/30 via-transparent to-slate-950/30" />
-
-          {/* Hover tooltip */}
-          {hoverInfo && (
-            <div
-              className="pointer-events-none absolute z-20 -translate-y-full rounded-lg border border-white/10 bg-slate-900/95 px-3 py-2 text-xs shadow-lg shadow-black/40"
-              style={{ left: hoverInfo.x + 10, top: hoverInfo.y - 10 }}
-            >
-              <p className="font-semibold text-slate-50">
-                {hoverInfo.peer.label || 'Worker Node'}
-              </p>
-              {hoverInfo.peer.country && (
-                <p className="text-slate-400">{hoverInfo.peer.country}</p>
-              )}
-              <p className="text-slate-500 font-mono text-[10px] mt-1">
-                {hoverInfo.peer.address.length > 30
-                  ? `${hoverInfo.peer.address.slice(0, 15)}...${hoverInfo.peer.address.slice(-12)}`
-                  : hoverInfo.peer.address}
-              </p>
-              <p className={`mt-1 text-[10px] ${selectedPeers.includes(hoverInfo.peer.address) ? 'text-red-400' : 'text-slate-500'}`}>
-                {selectedPeers.includes(hoverInfo.peer.address) ? '● Selected' : '○ Click to select'}
-              </p>
-            </div>
-          )}
 
           {/* Map error fallback */}
           {mapError && (
@@ -304,6 +289,33 @@ export default function NodeMapSelector({
           )}
         </div>
       </div>
+
+      {/* Cluster summary below map */}
+      {clusters.length > 0 && (
+        <div className="flex flex-wrap gap-2 text-[10px]">
+          {clusters.map((cluster) => {
+            const selectedCount = cluster.nodes.filter((n) => selectedPeers.includes(n.address)).length;
+            const totalCount = cluster.nodes.length;
+
+            return (
+              <div
+                key={cluster.key}
+                className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-800/50 border border-slate-700"
+              >
+                <span className={`w-2 h-2 rounded-full ${
+                  selectedCount === totalCount
+                    ? 'bg-red-500'
+                    : selectedCount > 0
+                    ? 'bg-amber-500'
+                    : 'bg-slate-500'
+                }`} />
+                <span className="text-slate-300">{cluster.country}</span>
+                <span className="text-slate-500">{selectedCount}/{totalCount}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

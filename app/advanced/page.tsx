@@ -8,11 +8,12 @@ import { useAuth } from '@/components/auth/AuthContext';
 import { useAppConfig } from '@/components/layout/AppConfigContext';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
+import Loader from '@/components/ui/Loader';
 
 export default function AdvancedPage(): JSX.Element {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const { config, refresh } = useAppConfig();
+  const { config, loading: configLoading, refresh } = useAppConfig();
 
   useEffect(() => {
     if (!loading && !user) {
@@ -25,6 +26,16 @@ export default function AdvancedPage(): JSX.Element {
       <main className="flex min-h-screen items-center justify-center text-slate-200">
         Redirecting...
       </main>
+    );
+  }
+
+  if (configLoading && !config) {
+    return (
+      <AppShell>
+        <div className="flex flex-col items-center justify-center py-16">
+          <Loader size="lg" message="Loading configuration..." />
+        </div>
+      </AppShell>
     );
   }
 
