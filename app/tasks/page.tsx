@@ -9,6 +9,7 @@ import useJobs from '@/lib/hooks/useJobs';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import JobList from '@/components/dashboard/JobList';
+import Loader, { JobListSkeleton } from '@/components/ui/Loader';
 import { useRouter } from 'next/navigation';
 
 type Filter = 'ongoing' | 'completed' | 'failed' | 'all';
@@ -28,8 +29,33 @@ export default function TasksPage(): JSX.Element {
   if (!user) {
     return (
       <main className="flex min-h-screen items-center justify-center text-slate-200">
-        Redirecting...
+        <Loader size="lg" message="Preparing workspace..." />
       </main>
+    );
+  }
+
+  // Show skeletons while jobs are loading for the first time
+  if (loading && jobs.length === 0) {
+    return (
+      <AppShell>
+        <div className="space-y-6">
+          <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Tasks</p>
+              <h1 className="text-3xl font-semibold text-slate-50">Task console</h1>
+              <p className="text-sm text-slate-300">
+                Review ongoing, completed, and failed tasks across your RedMesh mesh.
+              </p>
+            </div>
+          </header>
+          <Card
+            title="Tasks"
+            description="Filter tasks by status and inspect details."
+          >
+            <JobListSkeleton count={4} />
+          </Card>
+        </div>
+      </AppShell>
     );
   }
 

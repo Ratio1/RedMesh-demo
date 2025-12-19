@@ -11,6 +11,7 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import CopyableText from '@/components/ui/CopyableText';
+import Loader from '@/components/ui/Loader';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import type { WorkerReport } from '@/lib/api/types';
@@ -273,7 +274,8 @@ export default function JobDetailsPage(): JSX.Element {
 
     const totalOpenPorts = job.aggregate?.openPorts?.length || job.workers.reduce((sum, w) => sum + w.openPorts.length, 0);
     const totalPortsScanned = job.workers.reduce((sum, w) => sum + w.portsScanned, 0);
-    const workersWithFindings = job.workers.filter(w => Object.keys(w.serviceInfo).length > 0 || Object.keys(w.webTestsInfo).length > 0).length;
+    const workersWithDetails = job.workers.filter(w => Object.keys(w.serviceInfo).length > 0 || Object.keys(w.webTestsInfo).length > 0);
+    const workersWithFindings = workersWithDetails.length;
 
     const stats = [
       { label: 'Workers', value: String(job.workerCount) },
@@ -476,8 +478,12 @@ export default function JobDetailsPage(): JSX.Element {
     }
 
     // === PAGE 2: FINDINGS ===
-    doc.addPage();
-    y = 20;
+    // Only add a new page if there's content to display
+    const hasFindings = totalOpenPorts > 0 || job.aggregate || workersWithDetails.length > 0;
+    if (hasFindings) {
+      doc.addPage();
+      y = 20;
+    }
 
     // Open Ports Section (only if ports were found)
     if (totalOpenPorts > 0) {
@@ -530,10 +536,6 @@ export default function JobDetailsPage(): JSX.Element {
     }
 
     // === DETAILED WORKER REPORTS ===
-    const workersWithDetails = job.workers.filter(w =>
-      Object.keys(w.serviceInfo).length > 0 || Object.keys(w.webTestsInfo).length > 0
-    );
-
     if (workersWithDetails.length > 0) {
       addHeader('Detailed Worker Reports', 14, colors.primary);
       y += 5;
@@ -955,10 +957,13 @@ export default function JobDetailsPage(): JSX.Element {
     return <main className="flex min-h-screen items-center justify-center">Redirecting...</main>;
   }
 
-  if (jobLoading) {
+  // Show loader while job is loading or while auth is still loading
+  if (jobLoading || loading) {
     return (
       <AppShell>
-        <Card title="Loading task" description="Fetching the latest telemetry from RedMesh." />
+        <div className="flex flex-col items-center justify-center min-h-[60vh]">
+          <Loader size="lg" message="Fetching task telemetry..." />
+        </div>
       </AppShell>
     );
   }
@@ -975,7 +980,8 @@ export default function JobDetailsPage(): JSX.Element {
     );
   }
 
-  if (notFound || !job) {
+  // Only show "not found" when we explicitly received a 404 response
+  if (notFound) {
     return (
       <AppShell>
         <Card title="Task not found" description="Return to the dashboard to view the latest tasks.">
@@ -983,6 +989,17 @@ export default function JobDetailsPage(): JSX.Element {
             <Link href="/dashboard">Back to dashboard</Link>
           </Button>
         </Card>
+      </AppShell>
+    );
+  }
+
+  // If we get here without a job, something unexpected happened - show loader as fallback
+  if (!job) {
+    return (
+      <AppShell>
+        <div className="flex flex-col items-center justify-center min-h-[60vh]">
+          <Loader size="lg" message="Fetching task telemetry..." />
+        </div>
       </AppShell>
     );
   }

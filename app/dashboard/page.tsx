@@ -10,6 +10,7 @@ import useJobs from '@/lib/hooks/useJobs';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import JobList from '@/components/dashboard/JobList';
+import Loader, { JobListSkeleton, DashboardStatsSkeleton } from '@/components/ui/Loader';
 
 export default function DashboardPage(): JSX.Element {
   const { user, loading } = useAuth();
@@ -42,8 +43,30 @@ export default function DashboardPage(): JSX.Element {
   if (!user) {
     return (
       <main className="flex min-h-screen items-center justify-center text-slate-200">
-        Preparing your workspace...
+        <Loader size="lg" message="Preparing your workspace..." />
       </main>
+    );
+  }
+
+  // Show skeletons while jobs are loading for the first time
+  if (loadingJobs && jobs.length === 0) {
+    return (
+      <AppShell>
+        <div className="space-y-6">
+          <Card
+            title="Mesh operations overview"
+            description="Monitor live and historical tasks running on this Ratio1 Edge Node."
+          >
+            <DashboardStatsSkeleton />
+          </Card>
+          <Card
+            title="Tasks"
+            description="Filter tasks by status and inspect their details."
+          >
+            <JobListSkeleton count={3} />
+          </Card>
+        </div>
+      </AppShell>
     );
   }
 

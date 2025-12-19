@@ -4,6 +4,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
 import AppShell from "@/components/layout/AppShell";
 import Card from "@/components/ui/Card";
+import Loader from "@/components/ui/Loader";
 import { countryCodeToName } from "@/lib/gis";
 import type {
   NodeCountryStat,
@@ -174,8 +175,19 @@ export default function MeshPage(): JSX.Element {
   if (!user) {
     return (
       <main className="flex min-h-screen items-center justify-center text-slate-200">
-        Redirecting...
+        <Loader size="lg" message="Preparing workspace..." />
       </main>
+    );
+  }
+
+  // Show loader while nodes are loading for the first time
+  if (nodesLoading && peers.length === 0) {
+    return (
+      <AppShell>
+        <div className="flex flex-col items-center justify-center min-h-[60vh]">
+          <Loader size="lg" message="Loading mesh nodes..." />
+        </div>
+      </AppShell>
     );
   }
 

@@ -1,13 +1,15 @@
 'use client';
 
 import { ReactNode, useState } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Job } from '@/lib/api/types';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
+import { InlineLoader } from '@/components/ui/Loader';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import { useJobActions } from '@/lib/hooks/useJobActions';
+// Note: Link import removed - using programmatic navigation for loading state
 
 interface JobListProps {
   title: string;
@@ -95,9 +97,16 @@ export default function JobList({
   bare = false,
   onJobStopped
 }: JobListProps): JSX.Element {
+  const router = useRouter();
   const { stopJob, loading: actionLoading } = useJobActions();
   const [stoppingJobId, setStoppingJobId] = useState<string | null>(null);
+  const [navigatingToJobId, setNavigatingToJobId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  const handleViewDetails = (jobId: string) => {
+    setNavigatingToJobId(jobId);
+    router.push(`/dashboard/tasks/${jobId}`);
+  };
 
   const handleStopJob = async (job: Job) => {
     const confirmed = window.confirm(
@@ -206,8 +215,20 @@ export default function JobList({
                       {stoppingJobId === job.id ? 'Stopping...' : 'Stop'}
                     </Button>
                   )}
-                  <Button asChild variant="secondary" size="sm">
-                    <Link href={`/dashboard/tasks/${job.id}`}>View details</Link>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => handleViewDetails(job.id)}
+                    disabled={navigatingToJobId === job.id}
+                  >
+                    {navigatingToJobId === job.id ? (
+                      <>
+                        <InlineLoader className="mr-2" />
+                        Loading...
+                      </>
+                    ) : (
+                      'View details'
+                    )}
                   </Button>
                 </div>
               </div>
