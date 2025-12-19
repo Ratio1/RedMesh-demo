@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import TextArea from '@/components/ui/TextArea';
@@ -8,6 +9,19 @@ import Card from '@/components/ui/Card';
 import { useAuth } from '@/components/auth/AuthContext';
 import { useAppConfig } from '@/components/layout/AppConfigContext';
 import type { Job, JobDistribution, JobDuration } from '@/lib/api/types';
+
+// Dynamically import map component to avoid SSR issues
+const NodeMapSelector = dynamic(
+  () => import('./NodeMapSelector'),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="rounded-xl border border-white/10 bg-slate-900/30 p-4 text-center h-[300px] flex items-center justify-center">
+        <p className="text-sm text-slate-400">Loading map...</p>
+      </div>
+    )
+  }
+);
 
 interface JobFormProps {
   onCreated?: (job: Job) => Promise<void> | void;
@@ -52,6 +66,11 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
   const [selectedPeers, setSelectedPeers] = useState<string[]>([]);
   const peersTouchedRef = useRef(false);
   const [expandedFeatures, setExpandedFeatures] = useState(false);
+  const [nodeViewMode, setNodeViewMode] = useState<'list' | 'map'>('list');
+
+  // Check if peers have location data for map view
+  const peersWithLocation = peers.filter((p) => p.lat !== 0 || p.lng !== 0);
+  const hasMapData = peersWithLocation.length > 0;
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -597,11 +616,40 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
           <div className="space-y-1">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium text-slate-200">Worker nodes</p>
-              {peers.length > 0 && (
-                <span className="text-xs text-slate-400">
-                  {selectedPeers.length} of {peers.length} selected
-                </span>
-              )}
+              <div className="flex items-center gap-3">
+                {peers.length > 0 && (
+                  <span className="text-xs text-slate-400">
+                    {selectedPeers.length} of {peers.length} selected
+                  </span>
+                )}
+                {/* View mode toggle - only show if peers have location data */}
+                {hasMapData && peers.length > 0 && (
+                  <div className="inline-flex rounded-lg border border-white/10 bg-slate-900/50 p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setNodeViewMode('list')}
+                      className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition ${
+                        nodeViewMode === 'list'
+                          ? 'bg-brand-primary/20 text-brand-primary'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      List
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNodeViewMode('map')}
+                      className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition ${
+                        nodeViewMode === 'map'
+                          ? 'bg-brand-primary/20 text-brand-primary'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Map
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
             <p className="text-xs text-slate-400">
               Select which nodes should run the scan. By default, all nodes are selected.
@@ -613,6 +661,7 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
             </div>
           ) : peers.length > 0 ? (
             <>
+              {/* Select/Clear buttons */}
               <div className="flex gap-2 mb-2">
                 <button
                   type="button"
@@ -636,40 +685,59 @@ export default function JobForm({ onCreated }: JobFormProps): JSX.Element {
                   Clear all
                 </button>
               </div>
-              <div className="grid gap-2 max-h-48 overflow-y-auto rounded-xl border border-white/10 bg-slate-900/30 p-3">
-                {peers.map((peer) => {
-                  const active = selectedPeers.includes(peer.address);
-                  // Use label if available, otherwise shorten the address
-                  const displayName = peer.label || (peer.address.length > 30
-                    ? `${peer.address.slice(0, 15)}...${peer.address.slice(-12)}`
-                    : peer.address);
-                  return (
-                    <button
-                      key={peer.address}
-                      type="button"
-                      onClick={() => {
-                        peersTouchedRef.current = true;
-                        setSelectedPeers((current) =>
+
+              {/* List view */}
+              {nodeViewMode === 'list' && (
+                <div className="grid gap-2 max-h-48 overflow-y-auto rounded-xl border border-white/10 bg-slate-900/30 p-3">
+                  {peers.map((peer) => {
+                    const active = selectedPeers.includes(peer.address);
+                    // Use label if available, otherwise shorten the address
+                    const displayName = peer.label || (peer.address.length > 30
+                      ? `${peer.address.slice(0, 15)}...${peer.address.slice(-12)}`
+                      : peer.address);
+                    return (
+                      <button
+                        key={peer.address}
+                        type="button"
+                        onClick={() => {
+                          peersTouchedRef.current = true;
+                          setSelectedPeers((current) =>
+                            active
+                              ? current.filter((item) => item !== peer.address)
+                              : [...current, peer.address]
+                          );
+                        }}
+                        className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition ${
                           active
-                            ? current.filter((item) => item !== peer.address)
-                            : [...current, peer.address]
-                        );
-                      }}
-                      className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition ${
-                        active
-                          ? 'border-brand-primary/60 bg-brand-primary/15 text-slate-100'
-                          : 'border-white/10 bg-slate-900/40 text-slate-400 hover:border-brand-primary/40 hover:text-slate-200'
-                      }`}
-                      title={peer.address}
-                    >
-                      <span className="text-xs">{displayName}</span>
-                      {active && (
-                        <span className="ml-2 text-xs uppercase text-brand-primary">Selected</span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+                            ? 'border-brand-primary/60 bg-brand-primary/15 text-slate-100'
+                            : 'border-white/10 bg-slate-900/40 text-slate-400 hover:border-brand-primary/40 hover:text-slate-200'
+                        }`}
+                        title={peer.address}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs">{displayName}</span>
+                          {peer.country && (
+                            <span className="text-[10px] text-slate-500">({peer.country})</span>
+                          )}
+                        </div>
+                        {active && (
+                          <span className="ml-2 text-xs uppercase text-brand-primary">Selected</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Map view */}
+              {nodeViewMode === 'map' && (
+                <NodeMapSelector
+                  peers={peers}
+                  selectedPeers={selectedPeers}
+                  onSelectionChange={setSelectedPeers}
+                  onTouched={() => { peersTouchedRef.current = true; }}
+                />
+              )}
             </>
           ) : (
             <div className="rounded-xl border border-white/10 bg-slate-900/30 p-4 text-center">
