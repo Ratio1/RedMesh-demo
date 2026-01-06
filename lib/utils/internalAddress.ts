@@ -1,7 +1,6 @@
 import { getAddress, keccak256, hexToBytes, bytesToHex } from 'viem';
 import { Point } from '@noble/secp256k1';
-
-const INTERNAL_ADDRESS_PREFIX = '0xai_';
+import { INTERNAL_ADDRESS_PREFIX } from '../config/constants';
 
 const base64UrlToBytes = (value: string): Uint8Array => {
   const padded = value

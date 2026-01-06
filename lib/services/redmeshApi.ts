@@ -1,4 +1,5 @@
 import { getAppConfig } from '../config/env';
+import { DEFAULT_API_TIMEOUT_MS, STREAM_API_TIMEOUT_MS } from '../config/constants';
 import { ApiError } from '../api/errors';
 import { redmeshLogger } from './logger';
 import {
@@ -47,7 +48,7 @@ export class RedMeshApiService {
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), options?.timeout ?? 30000);
+    const timeoutId = setTimeout(() => controller.abort(), options?.timeout ?? DEFAULT_API_TIMEOUT_MS);
 
     const fetchOptions: RequestInit = {
       method,
@@ -96,7 +97,7 @@ export class RedMeshApiService {
     } catch (error) {
       clearTimeout(timeoutId);
       if (error instanceof Error && error.name === 'AbortError') {
-        const timeoutMs = options?.timeout ?? 30000;
+        const timeoutMs = options?.timeout ?? DEFAULT_API_TIMEOUT_MS;
         redmeshLogger.error(`Request timeout after ${timeoutMs / 1000}s: ${method} ${url}`);
         if (options?.body) {
           redmeshLogger.error('Request body was:', options.body);
@@ -119,7 +120,7 @@ export class RedMeshApiService {
     // Use longer timeout for launch_test as it may take time to coordinate workers
     return this.request<LaunchTestResponse>('POST', '/launch_test', {
       body: request,
-      timeout: 120000, // 2 minutes
+      timeout: STREAM_API_TIMEOUT_MS,
     });
   }
 
