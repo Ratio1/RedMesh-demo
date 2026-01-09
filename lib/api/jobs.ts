@@ -251,10 +251,10 @@ function normalizeJob(raw: any): Job {
     summary: raw.summary ?? raw.description ?? 'No summary provided.',
     createdAt,
     updatedAt,
-    startedAt: startedAt ?? undefined,
-    completedAt: completedAt ?? undefined,
-    owner: raw.owner ?? raw.launcher ?? undefined,
-    payloadUri: raw.payload_uri ?? raw.payloadUri ?? undefined,
+    startedAt,
+    completedAt,
+    owner: raw.owner ?? raw.launcher,
+    payloadUri: raw.payload_uri ?? raw.payloadUri,
     priority: normalizePriority(raw.priority ?? raw.jobPriority ?? 'medium'),
     workerCount: workers.length || Number(raw.worker_count ?? raw.nrWorkers ?? 0),
     exceptionPorts: coerceArray<number>(raw.exceptions ?? raw.exception_ports),
@@ -262,7 +262,7 @@ function normalizeJob(raw: any): Job {
     workers,
     aggregate,
     timeline,
-    lastError: raw.error ?? raw.last_error ?? undefined,
+    lastError: raw.error ?? raw.last_error,
     distribution: normalizeDistribution(raw.distribution ?? raw.worker_distribution ?? raw.range_distribution),
     duration: normalizeDuration(raw.duration ?? raw.run_mode ?? raw.mode),
     tempo: normalizeTempo(tempoPayload),
@@ -345,7 +345,6 @@ function normalizeJobFromSpecs(specs: JobSpecs): Job {
   const distribution: JobDistribution = specs.distribution_strategy === 'MIRROR' ? 'mirror' : 'slice';
 
   // Map run_mode to UI format
-  const duration: JobDuration = specs.run_mode === 'CONTINUOUS_MONITORING' ? 'continuous' : 'singlepass';
   const runMode: JobRunMode = specs.run_mode === 'CONTINUOUS_MONITORING' ? 'continuous' : 'singlepass';
 
   // Map port_order to UI format
@@ -389,7 +388,7 @@ function normalizeJobFromSpecs(specs: JobSpecs): Job {
     timeline,
     lastError: undefined,
     distribution,
-    duration,
+    duration: runMode,
     runMode,
     portOrder,
     portRange: { start: specs.start_port, end: specs.end_port },
