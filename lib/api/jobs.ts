@@ -103,6 +103,9 @@ function deriveStatus(raw: any): JobStatus {
   if (['cancelled', 'canceled'].includes(explicit)) {
     return 'cancelled';
   }
+  if (['stopped'].includes(explicit)) {
+    return 'stopped';
+  }
 
   const workers = raw?.workers;
   if (workers && typeof workers === 'object') {
@@ -323,13 +326,15 @@ function normalizeJobFromSpecs(specs: JobSpecs): Job {
     status = 'cancelled';
   } else if (jobStatus === 'FAILED') {
     status = 'failed';
+  } else if (jobStatus === 'STOPPED') {
+    status = 'stopped';
   }
 
   // Generate timeline from timestamps
   const timeline: JobTimelineEntry[] = [
     { label: 'Job created', at: createdAt }
   ];
-  if (status === 'running' || status === 'completed') {
+  if (status === 'running' || status === 'completed' || status === 'stopped') {
     timeline.push({ label: 'Job started', at: createdAt });
   }
   if (finalizedAt) {
@@ -369,7 +374,7 @@ function normalizeJobFromSpecs(specs: JobSpecs): Job {
     summary: specs.task_description || 'RedMesh scan job',
     createdAt,
     updatedAt,
-    startedAt: status === 'running' || status === 'completed' ? createdAt : undefined,
+    startedAt: createdAt,
     completedAt: finalizedAt,
     finalizedAt,
     owner: specs.launcher,

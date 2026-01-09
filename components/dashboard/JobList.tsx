@@ -27,6 +27,8 @@ function StatusBadge({ status }: { status: Job['status'] }): JSX.Element {
       return <Badge tone="warning" label="Running" />;
     case 'completed':
       return <Badge tone="success" label="Completed" />;
+    case 'stopped':
+      return <Badge tone="success" label="Stopped" />;
     case 'failed':
       return <Badge tone="danger" label="Failed" />;
     case 'queued':
@@ -64,7 +66,7 @@ function LatestEvent({ timeline }: { timeline: Job['timeline'] }): JSX.Element |
 }
 
 function computeCompletion(job: Job): number {
-  if (job.status === 'completed') {
+  if (job.status === 'completed' || job.status === 'stopped') {
     return 100;
   }
   if (job.status === 'queued') {

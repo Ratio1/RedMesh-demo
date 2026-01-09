@@ -80,7 +80,7 @@ export default function useJobs(): JobsState {
 
   const split = useMemo(() => {
     const ongoing = jobList.filter((job) => job.status === 'running' || job.status === 'queued');
-    const completed = jobList.filter((job) => job.status === 'completed');
+    const completed = jobList.filter((job) => job.status === 'completed' || job.status === 'stopped');
     const failed = jobList.filter((job) => job.status === 'failed');
     return { ongoing, completed, failed };
   }, [jobList]);

@@ -252,6 +252,7 @@ export default function JobDetailsPage(): JSX.Element {
 
     // Status badge
     const statusColor = job.status === 'completed' ? colors.primary :
+                        job.status === 'stopped' ? colors.primary :
                         job.status === 'failed' ? colors.danger :
                         job.status === 'running' ? colors.warning : colors.secondary;
     doc.setFillColor(...statusColor);
