@@ -88,37 +88,30 @@ function normalizeWorker(id: string, payload: any): JobWorkerStatus {
 
 function deriveStatus(raw: any): JobStatus {
   const explicit = (raw?.status ?? raw?.state ?? '').toString().toLowerCase();
-  if (['queued', 'pending'].includes(explicit)) {
-    return 'queued';
-  }
   if (['running', 'in_progress', 'in-progress'].includes(explicit)) {
     return 'running';
   }
-  if (['completed', 'done', 'success'].includes(explicit)) {
-    return 'completed';
-  }
-  if (['failed', 'error'].includes(explicit)) {
-    return 'failed';
-  }
-  if (['cancelled', 'canceled'].includes(explicit)) {
-    return 'cancelled';
+  if (['stopping', 'scheduled_for_stop', 'scheduled-for-stop'].includes(explicit)) {
+    return 'stopping';
   }
   if (['stopped'].includes(explicit)) {
     return 'stopped';
   }
+  if (['completed', 'done', 'success', 'finalized'].includes(explicit)) {
+    return 'completed';
+  }
 
+  // Derive from worker states if no explicit status
   const workers = raw?.workers;
   if (workers && typeof workers === 'object') {
     const workerList = Object.values(workers) as any[];
     if (workerList.length && workerList.every((worker) => worker?.finished || worker?.done)) {
       return 'completed';
     }
-    if (workerList.some((worker) => worker?.finished || worker?.done)) {
-      return 'running';
-    }
   }
 
-  return 'queued';
+  // Default: jobs start as running
+  return 'running';
 }
 
 function normalizeAggregate(raw: any): JobAggregateReport | undefined {
@@ -316,16 +309,14 @@ function normalizeJobFromSpecs(specs: JobSpecs): Job {
   }));
 
   // Derive status from job_status field
-  let status: JobStatus = 'queued';
+  let status: JobStatus = 'running'; // Jobs start as running
   const jobStatus = specs.job_status?.toUpperCase();
   if (jobStatus === 'FINALIZED') {
     status = 'completed';
   } else if (jobStatus === 'RUNNING') {
     status = 'running';
-  } else if (jobStatus === 'CANCELLED' || jobStatus === 'CANCELED') {
-    status = 'cancelled';
-  } else if (jobStatus === 'FAILED') {
-    status = 'failed';
+  } else if (jobStatus === 'SCHEDULED_FOR_STOP') {
+    status = 'stopping';
   } else if (jobStatus === 'STOPPED') {
     status = 'stopped';
   }
@@ -334,7 +325,7 @@ function normalizeJobFromSpecs(specs: JobSpecs): Job {
   const timeline: JobTimelineEntry[] = [
     { label: 'Job created', at: createdAt }
   ];
-  if (status === 'running' || status === 'completed' || status === 'stopped') {
+  if (status === 'running' || status === 'stopping' || status === 'completed' || status === 'stopped') {
     timeline.push({ label: 'Job started', at: createdAt });
   }
   if (finalizedAt) {

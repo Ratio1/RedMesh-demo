@@ -1,4 +1,4 @@
-export type JobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled' | 'stopped';
+export type JobStatus = 'running' | 'stopping' | 'stopped' | 'completed';
 
 export type JobPriority = 'low' | 'medium' | 'high' | 'critical';
 
