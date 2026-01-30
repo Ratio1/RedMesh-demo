@@ -165,7 +165,7 @@ const INITIAL_JOBS: Job[] = [
     id: randomUUID(),
     displayName: 'Mesh Breach Simulation - Finance cluster',
     target: '172.19.20.5',
-    status: 'failed',
+    status: 'stopped',
     summary: 'Simulated breach drill across finance subnet to validate containment.',
     createdAt: new Date(Date.now() - 1000 * 60 * 25).toISOString(),
     updatedAt: new Date().toISOString(),
@@ -186,7 +186,7 @@ const INITIAL_JOBS: Job[] = [
     timeline: buildTimeline([
       { label: 'Job created', at: new Date(Date.now() - 1000 * 60 * 25) },
       { label: 'Dispatch issued to workers', at: new Date(Date.now() - 1000 * 60 * 20) },
-      { label: 'Job marked failed', at: new Date() }
+      { label: 'Job stopped', at: new Date() }
     ]),
     distribution: 'mirror',
     duration: 'continuous',
@@ -279,7 +279,7 @@ const INITIAL_JOBS: Job[] = [
     id: randomUUID(),
     displayName: 'TLS Audit - Romania edge',
     target: 'ro.mesh.ratio1',
-    status: 'failed',
+    status: 'stopped',
     summary: 'TLS posture audit across Romanian edge nodes.',
     createdAt: new Date(Date.now() - 1000 * 60 * 80).toISOString(),
     startedAt: new Date(Date.now() - 1000 * 60 * 70).toISOString(),
@@ -295,15 +295,15 @@ const INITIAL_JOBS: Job[] = [
     timeline: buildTimeline([
       { label: 'Job created', at: new Date(Date.now() - 1000 * 60 * 80) },
       { label: 'Dispatch issued to workers', at: new Date(Date.now() - 1000 * 60 * 70) },
-      { label: 'Job failed', at: new Date(Date.now() - 1000 * 60 * 60) }
+      { label: 'Job stopped', at: new Date(Date.now() - 1000 * 60 * 60) }
     ])
   }),
   buildJob({
     id: randomUUID(),
     displayName: 'Incident Response Drill - APAC',
     target: 'apac.mesh.ratio1',
-    status: 'failed',
-    summary: 'APAC incident response simulation with controlled failure.',
+    status: 'stopped',
+    summary: 'APAC incident response simulation with controlled stop.',
     createdAt: new Date(Date.now() - 1000 * 60 * 140).toISOString(),
     startedAt: new Date(Date.now() - 1000 * 60 * 135).toISOString(),
     completedAt: new Date(Date.now() - 1000 * 60 * 130).toISOString(),
@@ -318,7 +318,7 @@ const INITIAL_JOBS: Job[] = [
     timeline: buildTimeline([
       { label: 'Job created', at: new Date(Date.now() - 1000 * 60 * 140) },
       { label: 'Dispatch issued to workers', at: new Date(Date.now() - 1000 * 60 * 135) },
-      { label: 'Job failed', at: new Date(Date.now() - 1000 * 60 * 130) }
+      { label: 'Job stopped', at: new Date(Date.now() - 1000 * 60 * 130) }
     ])
   })
 ];
@@ -327,16 +327,14 @@ let mutableJobs = [...INITIAL_JOBS];
 
 function computeTimelineEntry(status: JobStatus): string {
   switch (status) {
-    case 'queued':
-      return 'Job queued';
     case 'running':
       return 'Workers executing';
+    case 'stopping':
+      return 'Job stopping';
+    case 'stopped':
+      return 'Job stopped';
     case 'completed':
       return 'Job completed';
-    case 'failed':
-      return 'Job failed';
-    case 'cancelled':
-      return 'Job cancelled';
     default:
       return 'Status updated';
   }
@@ -354,7 +352,7 @@ export function createMockJob(input: CreateJobInput, owner?: string): Job {
     displayName: input.name,
     target: input.target,
     initiator: owner ?? 'operator',
-    status: 'queued',
+    status: 'running',
     summary: input.summary,
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
@@ -414,8 +412,8 @@ export function transitionMockJob(id: string, status: JobStatus): void {
       };
     }
 
-    if (status === 'failed') {
-      updates.lastError = 'Mock target unreachable during network sweep.';
+    if (status === 'stopped') {
+      updates.completedAt = now.toISOString();
     }
 
     return {

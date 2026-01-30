@@ -12,12 +12,12 @@ import JobList from '@/components/dashboard/JobList';
 import Loader, { JobListSkeleton } from '@/components/ui/Loader';
 import { useRouter } from 'next/navigation';
 
-type Filter = 'ongoing' | 'completed' | 'failed' | 'all';
+type Filter = 'ongoing' | 'completed' | 'all';
 
 export default function TasksPage(): JSX.Element {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
-  const { jobs, ongoingJobs, completedJobs, failedJobs, loading, error, refresh } = useJobs();
+  const { jobs, ongoingJobs, completedJobs, loading, error, refresh } = useJobs();
   const [filter, setFilter] = useState<Filter>('ongoing');
 
   useEffect(() => {
@@ -44,7 +44,7 @@ export default function TasksPage(): JSX.Element {
               <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Tasks</p>
               <h1 className="text-3xl font-semibold text-slate-50">Task console</h1>
               <p className="text-sm text-slate-300">
-                Review ongoing, completed, and failed tasks across your RedMesh mesh.
+                Review ongoing and completed tasks across your RedMesh mesh.
               </p>
             </div>
           </header>
@@ -65,8 +65,6 @@ export default function TasksPage(): JSX.Element {
         return ongoingJobs;
       case 'completed':
         return completedJobs;
-      case 'failed':
-        return failedJobs;
       default:
         return jobs;
     }
@@ -83,7 +81,7 @@ export default function TasksPage(): JSX.Element {
             <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Tasks</p>
             <h1 className="text-3xl font-semibold text-slate-50">Task console</h1>
             <p className="text-sm text-slate-300">
-              Review ongoing, completed, and failed tasks across your RedMesh mesh.
+              Review ongoing and completed tasks across your RedMesh mesh.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -101,7 +99,7 @@ export default function TasksPage(): JSX.Element {
           description="Filter tasks by status and inspect details."
           actions={
             <div className="flex flex-wrap gap-2">
-              {(['ongoing', 'completed', 'failed', 'all'] as const).map((option) => (
+              {(['ongoing', 'completed', 'all'] as const).map((option) => (
                 <Button
                   key={option}
                   variant={filter === option ? 'primary' : 'secondary'}

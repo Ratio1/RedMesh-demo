@@ -252,7 +252,8 @@ export default function JobDetailsPage(): JSX.Element {
 
     // Status badge
     const statusColor = job.status === 'completed' ? colors.primary :
-                        job.status === 'failed' ? colors.danger :
+                        job.status === 'stopped' ? colors.primary :
+                        job.status === 'stopping' ? colors.warning :
                         job.status === 'running' ? colors.warning : colors.secondary;
     doc.setFillColor(...statusColor);
     doc.roundedRect(margin + 5, y, 50, 8, 2, 2, 'F');
@@ -1024,7 +1025,7 @@ export default function JobDetailsPage(): JSX.Element {
             </div>
           </div>
           <div className="flex flex-wrap gap-3">
-            {(job.status === 'running' || job.status === 'queued') && (
+            {job.status === 'running' && (
               <Button
                 variant="danger"
                 size="sm"
@@ -1032,6 +1033,16 @@ export default function JobDetailsPage(): JSX.Element {
                 disabled={stopping || actionLoading}
               >
                 {stopping ? 'Stopping...' : 'Stop Job'}
+              </Button>
+            )}
+            {job.status === 'stopping' && (
+              <Button
+                variant="danger"
+                size="sm"
+                disabled
+                title="Stop already requested"
+              >
+                Stopping...
               </Button>
             )}
             {job.duration === 'continuous' && job.status === 'running' && (
@@ -1042,6 +1053,16 @@ export default function JobDetailsPage(): JSX.Element {
                 disabled={stoppingMonitoring || actionLoading}
               >
                 {stoppingMonitoring ? 'Stopping...' : 'Stop Monitoring'}
+              </Button>
+            )}
+            {job.duration === 'continuous' && job.status === 'stopping' && (
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled
+                title="Stop already requested"
+              >
+                Stopping...
               </Button>
             )}
             <Button variant="secondary" size="sm" onClick={() => refresh()}>

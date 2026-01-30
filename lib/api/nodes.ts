@@ -1,8 +1,22 @@
 import type { FeatureCollection, Point } from 'geojson';
 import { ApiError } from './errors';
 import { getAppConfig } from '../config/env';
+import { PEER_CACHE_TTL_MS } from '../config/constants';
 import { countryCodeToLngLat, countryCountsToGeoJSON } from '../gis';
 import { internalNodeAddressToEthAddress } from '../utils/internalAddress';
+
+// Cache for peer geo data - peers list from env doesn't change at runtime
+interface PeerCache {
+  data: NodeGeoResponse | null;
+  peersKey: string;
+  timestamp: number;
+}
+
+let peerCache: PeerCache = {
+  data: null,
+  peersKey: '',
+  timestamp: 0
+};
 
 export interface NodeCountryStat {
   code: string;
@@ -279,7 +293,7 @@ function computeStatsFromNodes(nodes: Record<string, any>): NodeCountryStat[] {
   return Object.values(grouped).sort((a, b) => b.count - a.count);
 }
 
-export async function getNodeGeoData(): Promise<NodeGeoResponse> {
+async function fetchNodeGeoDataFromOracles(): Promise<NodeGeoResponse> {
   const config = getAppConfig();
 
   try {
@@ -287,7 +301,7 @@ export async function getNodeGeoData(): Promise<NodeGeoResponse> {
     const peerRecords: Record<string, any> = {};
 
     console.log('\n╔════════════════════════════════════════════════════════════════╗');
-    console.log('║                   getNodeGeoData - START                       ║');
+    console.log('║                   getNodeGeoData - FETCHING                    ║');
     console.log('╚════════════════════════════════════════════════════════════════╝');
     console.log('[getNodeGeoData] Oracle API URL:', config.oraclesApiUrl);
     console.log('[getNodeGeoData] Peers:', config.chainstorePeers);
@@ -360,4 +374,32 @@ export async function getNodeGeoData(): Promise<NodeGeoResponse> {
     const peers = buildPeerList(config.chainstorePeers);
     return { stats: [], geoJson: buildPeerGeo(peers), source: 'mock', peers };
   }
+}
+
+export async function getNodeGeoData(): Promise<NodeGeoResponse> {
+  const config = getAppConfig();
+  const peersKey = config.chainstorePeers.sort().join(',');
+  const now = Date.now();
+
+  // Check if cache is valid
+  if (
+    peerCache.data &&
+    peerCache.peersKey === peersKey &&
+    now - peerCache.timestamp < PEER_CACHE_TTL_MS
+  ) {
+    console.log('[getNodeGeoData] ✓ Returning cached data (age:', Math.round((now - peerCache.timestamp) / 1000), 's)');
+    return peerCache.data;
+  }
+
+  console.log('[getNodeGeoData] Cache miss or expired, fetching fresh data...');
+  const data = await fetchNodeGeoDataFromOracles();
+
+  // Update cache
+  peerCache = {
+    data,
+    peersKey,
+    timestamp: now
+  };
+
+  return data;
 }

@@ -8,7 +8,6 @@ interface JobsState {
   jobs: Job[];
   ongoingJobs: Job[];
   completedJobs: Job[];
-  failedJobs: Job[];
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
@@ -16,7 +15,7 @@ interface JobsState {
 
 export default function useJobs(): JobsState {
   const { token, loading: authLoading } = useAuth();
-  const [jobs, setJobs] = useState<Job[]>([]);
+  const [jobs, setJobs] = useState<Job[] | undefined>(undefined);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const inFlightRef = useRef<AbortController | null>(null);
@@ -76,19 +75,19 @@ export default function useJobs(): JobsState {
     };
   }, []);
 
+  const jobList = jobs ?? [];
+
   const split = useMemo(() => {
-    const ongoing = jobs.filter((job) => job.status === 'running' || job.status === 'queued');
-    const completed = jobs.filter((job) => job.status === 'completed');
-    const failed = jobs.filter((job) => job.status === 'failed');
-    return { ongoing, completed, failed };
-  }, [jobs]);
+    const ongoing = jobList.filter((job) => job.status === 'running' || job.status === 'stopping');
+    const completed = jobList.filter((job) => job.status === 'completed' || job.status === 'stopped');
+    return { ongoing, completed };
+  }, [jobList]);
 
   return {
-    jobs,
+    jobs: jobList,
     ongoingJobs: split.ongoing,
     completedJobs: split.completed,
-    failedJobs: split.failed,
-    loading,
+    loading: loading || jobs === undefined,
     error,
     refresh: loadJobs
   };

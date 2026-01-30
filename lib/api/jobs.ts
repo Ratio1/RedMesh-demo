@@ -88,34 +88,30 @@ function normalizeWorker(id: string, payload: any): JobWorkerStatus {
 
 function deriveStatus(raw: any): JobStatus {
   const explicit = (raw?.status ?? raw?.state ?? '').toString().toLowerCase();
-  if (['queued', 'pending'].includes(explicit)) {
-    return 'queued';
-  }
   if (['running', 'in_progress', 'in-progress'].includes(explicit)) {
     return 'running';
   }
-  if (['completed', 'done', 'success'].includes(explicit)) {
+  if (['stopping', 'scheduled_for_stop', 'scheduled-for-stop'].includes(explicit)) {
+    return 'stopping';
+  }
+  if (['stopped'].includes(explicit)) {
+    return 'stopped';
+  }
+  if (['completed', 'done', 'success', 'finalized'].includes(explicit)) {
     return 'completed';
   }
-  if (['failed', 'error'].includes(explicit)) {
-    return 'failed';
-  }
-  if (['cancelled', 'canceled'].includes(explicit)) {
-    return 'cancelled';
-  }
 
+  // Derive from worker states if no explicit status
   const workers = raw?.workers;
   if (workers && typeof workers === 'object') {
     const workerList = Object.values(workers) as any[];
     if (workerList.length && workerList.every((worker) => worker?.finished || worker?.done)) {
       return 'completed';
     }
-    if (workerList.some((worker) => worker?.finished || worker?.done)) {
-      return 'running';
-    }
   }
 
-  return 'queued';
+  // Default: jobs start as running
+  return 'running';
 }
 
 function normalizeAggregate(raw: any): JobAggregateReport | undefined {
@@ -248,10 +244,10 @@ function normalizeJob(raw: any): Job {
     summary: raw.summary ?? raw.description ?? 'No summary provided.',
     createdAt,
     updatedAt,
-    startedAt: startedAt ?? undefined,
-    completedAt: completedAt ?? undefined,
-    owner: raw.owner ?? raw.launcher ?? undefined,
-    payloadUri: raw.payload_uri ?? raw.payloadUri ?? undefined,
+    startedAt,
+    completedAt,
+    owner: raw.owner ?? raw.launcher,
+    payloadUri: raw.payload_uri ?? raw.payloadUri,
     priority: normalizePriority(raw.priority ?? raw.jobPriority ?? 'medium'),
     workerCount: workers.length || Number(raw.worker_count ?? raw.nrWorkers ?? 0),
     exceptionPorts: coerceArray<number>(raw.exceptions ?? raw.exception_ports),
@@ -259,7 +255,7 @@ function normalizeJob(raw: any): Job {
     workers,
     aggregate,
     timeline,
-    lastError: raw.error ?? raw.last_error ?? undefined,
+    lastError: raw.error ?? raw.last_error,
     distribution: normalizeDistribution(raw.distribution ?? raw.worker_distribution ?? raw.range_distribution),
     duration: normalizeDuration(raw.duration ?? raw.run_mode ?? raw.mode),
     tempo: normalizeTempo(tempoPayload),
@@ -313,23 +309,23 @@ function normalizeJobFromSpecs(specs: JobSpecs): Job {
   }));
 
   // Derive status from job_status field
-  let status: JobStatus = 'queued';
+  let status: JobStatus = 'running'; // Jobs start as running
   const jobStatus = specs.job_status?.toUpperCase();
   if (jobStatus === 'FINALIZED') {
     status = 'completed';
   } else if (jobStatus === 'RUNNING') {
     status = 'running';
-  } else if (jobStatus === 'CANCELLED' || jobStatus === 'CANCELED') {
-    status = 'cancelled';
-  } else if (jobStatus === 'FAILED') {
-    status = 'failed';
+  } else if (jobStatus === 'SCHEDULED_FOR_STOP') {
+    status = 'stopping';
+  } else if (jobStatus === 'STOPPED') {
+    status = 'stopped';
   }
 
   // Generate timeline from timestamps
   const timeline: JobTimelineEntry[] = [
     { label: 'Job created', at: createdAt }
   ];
-  if (status === 'running' || status === 'completed') {
+  if (status === 'running' || status === 'stopping' || status === 'completed' || status === 'stopped') {
     timeline.push({ label: 'Job started', at: createdAt });
   }
   if (finalizedAt) {
@@ -340,7 +336,6 @@ function normalizeJobFromSpecs(specs: JobSpecs): Job {
   const distribution: JobDistribution = specs.distribution_strategy === 'MIRROR' ? 'mirror' : 'slice';
 
   // Map run_mode to UI format
-  const duration: JobDuration = specs.run_mode === 'CONTINUOUS_MONITORING' ? 'continuous' : 'singlepass';
   const runMode: JobRunMode = specs.run_mode === 'CONTINUOUS_MONITORING' ? 'continuous' : 'singlepass';
 
   // Map port_order to UI format
@@ -369,7 +364,7 @@ function normalizeJobFromSpecs(specs: JobSpecs): Job {
     summary: specs.task_description || 'RedMesh scan job',
     createdAt,
     updatedAt,
-    startedAt: status === 'running' || status === 'completed' ? createdAt : undefined,
+    startedAt: createdAt,
     completedAt: finalizedAt,
     finalizedAt,
     owner: specs.launcher,
@@ -384,7 +379,7 @@ function normalizeJobFromSpecs(specs: JobSpecs): Job {
     timeline,
     lastError: undefined,
     distribution,
-    duration,
+    duration: runMode,
     runMode,
     portOrder,
     portRange: { start: specs.start_port, end: specs.end_port },

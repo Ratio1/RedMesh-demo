@@ -25,14 +25,12 @@ function StatusBadge({ status }: { status: Job['status'] }): JSX.Element {
   switch (status) {
     case 'running':
       return <Badge tone="warning" label="Running" />;
+    case 'stopping':
+      return <Badge tone="warning" label="Stopping..." />;
     case 'completed':
       return <Badge tone="success" label="Completed" />;
-    case 'failed':
-      return <Badge tone="danger" label="Failed" />;
-    case 'queued':
-      return <Badge tone="neutral" label="Queued" />;
-    case 'cancelled':
-      return <Badge tone="neutral" label="Cancelled" />;
+    case 'stopped':
+      return <Badge tone="success" label="Stopped" />;
     default:
       return <Badge tone="neutral" label={status} />;
   }
@@ -64,28 +62,15 @@ function LatestEvent({ timeline }: { timeline: Job['timeline'] }): JSX.Element |
 }
 
 function computeCompletion(job: Job): number {
-  if (job.status === 'completed') {
+  if (job.status === 'completed' || job.status === 'stopped') {
     return 100;
   }
-  if (job.status === 'queued') {
-    return 0;
-  }
-  if (job.status === 'failed' || job.status === 'cancelled') {
-    return Math.min(
-      100,
-      Math.max(
-        0,
-        job.workers.length
-          ? job.workers.reduce((acc, worker) => acc + (worker.progress ?? 0), 0) / job.workers.length
-          : 25
-      )
-    );
-  }
+  // 'running' and 'stopping' - calculate from worker progress
   if (job.workers.length) {
     const avg = job.workers.reduce((acc, worker) => acc + (worker.progress ?? 0), 0) / job.workers.length;
     return Math.min(100, Math.max(0, Math.round(avg)));
   }
-  return 15;
+  return 0;
 }
 
 export default function JobList({
@@ -205,7 +190,7 @@ export default function JobList({
                   </div>
                 </div>
                 <div className="flex gap-2 lg:self-end">
-                  {(job.status === 'running' || job.status === 'queued') && (
+                  {job.status === 'running' && (
                     <Button
                       variant="danger"
                       size="sm"
@@ -213,6 +198,16 @@ export default function JobList({
                       disabled={stoppingJobId === job.id || actionLoading}
                     >
                       {stoppingJobId === job.id ? 'Stopping...' : 'Stop'}
+                    </Button>
+                  )}
+                  {job.status === 'stopping' && (
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      disabled
+                      title="Stop already requested"
+                    >
+                      Stopping...
                     </Button>
                   )}
                   <Button
