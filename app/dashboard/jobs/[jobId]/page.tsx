@@ -44,11 +44,13 @@ export default function JobDetailsPage(): JSX.Element {
   const [expandedTests, setExpandedTests] = useState<Set<string>>(new Set());
   const [expandedFeatures, setExpandedFeatures] = useState(false);
   const [expandedResults, setExpandedResults] = useState<Set<string>>(new Set());
+  const [selectedPort, setSelectedPort] = useState<number | null>(null);
 
   // Aggregate all open ports from worker reports
   const aggregatedPorts = useMemo(() => {
     const portsSet = new Set<number>();
     const serviceMap = new Map<number, Record<string, unknown>>();
+    const webTestsMap = new Map<number, Record<string, unknown>>();
 
     Object.values(reports).forEach((report) => {
       const workerReport = report as WorkerReport;
@@ -64,11 +66,41 @@ export default function JobDetailsPage(): JSX.Element {
           }
         });
       }
+      // Collect web tests info for each port
+      if (workerReport.webTestsInfo && typeof workerReport.webTestsInfo === 'object') {
+        Object.entries(workerReport.webTestsInfo).forEach(([port, info]) => {
+          const portNum = parseInt(port, 10);
+          if (!isNaN(portNum) && info) {
+            webTestsMap.set(portNum, info as Record<string, unknown>);
+          }
+        });
+      }
+    });
+
+    // Also collect from job workers
+    job?.workers.forEach((worker) => {
+      worker.openPorts.forEach((port) => portsSet.add(port));
+      if (worker.serviceInfo && typeof worker.serviceInfo === 'object') {
+        Object.entries(worker.serviceInfo).forEach(([port, info]) => {
+          const portNum = parseInt(port, 10);
+          if (!isNaN(portNum) && info) {
+            serviceMap.set(portNum, info as Record<string, unknown>);
+          }
+        });
+      }
+      if (worker.webTestsInfo && typeof worker.webTestsInfo === 'object') {
+        Object.entries(worker.webTestsInfo).forEach(([port, info]) => {
+          const portNum = parseInt(port, 10);
+          if (!isNaN(portNum) && info) {
+            webTestsMap.set(portNum, info as Record<string, unknown>);
+          }
+        });
+      }
     });
 
     const sortedPorts = Array.from(portsSet).sort((a, b) => a - b);
-    return { ports: sortedPorts, services: serviceMap };
-  }, [reports]);
+    return { ports: sortedPorts, services: serviceMap, webTests: webTestsMap };
+  }, [reports, job?.workers]);
 
   const handleStopJob = async () => {
     if (!job) return;
@@ -1248,34 +1280,38 @@ export default function JobDetailsPage(): JSX.Element {
           {/* Discovered Open Ports Card */}
           <Card
             title="Discovered Open Ports"
-            description={`${aggregatedPorts.ports.length} unique port${aggregatedPorts.ports.length !== 1 ? 's' : ''} found across all workers`}
+            description={`${aggregatedPorts.ports.length} unique port${aggregatedPorts.ports.length !== 1 ? 's' : ''} found across all workers. Click a port to see details.`}
             className="lg:col-span-2"
           >
             {aggregatedPorts.ports.length === 0 ? (
               <p className="text-sm text-slate-400">No open ports discovered yet.</p>
             ) : (
               <div className="space-y-4">
-                {/* Port Pills */}
+                {/* Port Pills - Red and Clickable */}
                 <div className="flex flex-wrap gap-2">
                   {(aggregatedPorts.ports.length > 100 && !portsExpanded
                     ? aggregatedPorts.ports.slice(0, 50)
                     : aggregatedPorts.ports
                   ).map((port) => {
                     const hasService = aggregatedPorts.services.has(port);
+                    const hasWebTests = aggregatedPorts.webTests.has(port);
+                    const isSelected = selectedPort === port;
                     return (
-                      <span
+                      <button
                         key={port}
-                        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium ${
-                          hasService
-                            ? 'bg-emerald-900/40 border border-emerald-500/40 text-emerald-300'
-                            : 'bg-slate-700/50 border border-slate-600/50 text-slate-200'
+                        onClick={() => setSelectedPort(isSelected ? null : port)}
+                        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-brand-primary text-white ring-2 ring-brand-primary ring-offset-2 ring-offset-slate-900'
+                            : 'bg-brand-primary/20 border border-brand-primary/50 text-brand-primary hover:bg-brand-primary/30 hover:border-brand-primary'
                         }`}
+                        title={`Port ${port}${hasService ? ' - Service detected' : ''}${hasWebTests ? ' - Web tests available' : ''}`}
                       >
                         {port}
-                        {hasService && (
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" title="Service detected" />
+                        {(hasService || hasWebTests) && (
+                          <span className={`h-1.5 w-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-brand-primary'}`} />
                         )}
-                      </span>
+                      </button>
                     );
                   })}
                   {aggregatedPorts.ports.length > 100 && !portsExpanded && (
@@ -1294,26 +1330,111 @@ export default function JobDetailsPage(): JSX.Element {
                   </Button>
                 )}
 
-                {/* Service Details */}
-                {aggregatedPorts.services.size > 0 && (
-                  <div className="border-t border-white/10 pt-4">
-                    <p className="text-xs uppercase tracking-widest text-slate-400 mb-3">
-                      Detected Services ({aggregatedPorts.services.size})
-                    </p>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {Array.from(aggregatedPorts.services.entries()).map(([port, info]) => (
-                        <div
-                          key={port}
-                          className="rounded bg-slate-800/50 border border-white/5 p-3 text-sm"
-                        >
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="font-semibold text-emerald-400">Port {port}</span>
+                {/* Selected Port Details */}
+                {selectedPort !== null && (
+                  <div className="border-t border-white/10 pt-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="text-lg font-semibold text-brand-primary">
+                        Port {selectedPort} Details
+                      </h4>
+                      <button
+                        onClick={() => setSelectedPort(null)}
+                        className="text-slate-400 hover:text-slate-200 transition-colors"
+                        title="Close details"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    <div className="space-y-4">
+                      {/* Service Info for Selected Port */}
+                      {aggregatedPorts.services.has(selectedPort) && (
+                        <div className="rounded-lg bg-slate-800/50 border border-brand-primary/20 p-4">
+                          <p className="text-xs uppercase tracking-widest text-brand-primary mb-3">
+                            Service Detection
+                          </p>
+                          <div className="space-y-2">
+                            {Object.entries(aggregatedPorts.services.get(selectedPort) as Record<string, unknown>).map(([probeName, result]) => {
+                              if (result === null || result === undefined) return null;
+                              const resultStr = String(result);
+                              const isVulnerability = resultStr.includes('VULNERABILITY');
+                              const isError = resultStr.includes('failed') || resultStr.includes('timed out');
+                              return (
+                                <div
+                                  key={probeName}
+                                  className={`rounded px-3 py-2 text-sm ${
+                                    isVulnerability
+                                      ? 'bg-amber-900/30 border border-amber-500/30'
+                                      : isError
+                                      ? 'bg-slate-800/50 border border-white/5'
+                                      : 'bg-slate-900/50 border border-white/5'
+                                  }`}
+                                >
+                                  <span className={`font-medium ${
+                                    isVulnerability ? 'text-amber-300' : isError ? 'text-slate-500' : 'text-slate-300'
+                                  }`}>
+                                    {probeName.replace(/^_service_info_/, '')}:
+                                  </span>{' '}
+                                  <span className={`${
+                                    isVulnerability ? 'text-amber-200' : isError ? 'text-slate-500' : 'text-slate-400'
+                                  }`}>
+                                    {resultStr}
+                                  </span>
+                                </div>
+                              );
+                            })}
                           </div>
-                          <pre className="text-xs text-slate-300 overflow-x-auto whitespace-pre-wrap">
-                            {typeof info === 'object' ? JSON.stringify(info, null, 2) : String(info)}
-                          </pre>
                         </div>
-                      ))}
+                      )}
+
+                      {/* Web Tests / Vulnerabilities for Selected Port */}
+                      {aggregatedPorts.webTests.has(selectedPort) && (
+                        <div className="rounded-lg bg-slate-800/50 border border-brand-primary/20 p-4">
+                          <p className="text-xs uppercase tracking-widest text-brand-primary mb-3">
+                            Web Security Tests & Vulnerabilities
+                          </p>
+                          <div className="space-y-2">
+                            {Object.entries(aggregatedPorts.webTests.get(selectedPort) as Record<string, unknown>).map(([testName, result]) => {
+                              if (result === null || result === undefined) return null;
+                              const resultStr = String(result);
+                              const isVulnerable = resultStr.includes('VULNERABLE') || resultStr.includes('vulnerability');
+                              const isError = resultStr.startsWith('ERROR:');
+                              return (
+                                <div
+                                  key={testName}
+                                  className={`rounded px-3 py-2 text-sm ${
+                                    isVulnerable
+                                      ? 'bg-rose-900/30 border border-rose-500/30'
+                                      : isError
+                                      ? 'bg-slate-800/50 border border-white/5'
+                                      : 'bg-slate-900/50 border border-white/5'
+                                  }`}
+                                >
+                                  <span className={`font-medium ${
+                                    isVulnerable ? 'text-rose-300' : isError ? 'text-slate-500' : 'text-slate-300'
+                                  }`}>
+                                    {testName.replace(/^_web_test_/, '')}:
+                                  </span>{' '}
+                                  <span className={`${
+                                    isVulnerable ? 'text-rose-200' : isError ? 'text-slate-500' : 'text-slate-400'
+                                  }`}>
+                                    {resultStr}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* No details available */}
+                      {!aggregatedPorts.services.has(selectedPort) && !aggregatedPorts.webTests.has(selectedPort) && (
+                        <p className="text-sm text-slate-400">
+                          No service detection or vulnerability data available for this port yet.
+                        </p>
+                      )}
                     </div>
                   </div>
                 )}
