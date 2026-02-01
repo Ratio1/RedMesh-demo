@@ -1,5 +1,5 @@
 import { getAddress, keccak256, hexToBytes, bytesToHex } from 'viem';
-import { Point } from '@noble/secp256k1';
+import { secp256k1 } from '@noble/curves/secp256k1';
 import { INTERNAL_ADDRESS_PREFIX } from '../config/constants';
 
 const base64UrlToBytes = (value: string): Uint8Array => {
@@ -48,12 +48,7 @@ export const internalNodeAddressToEthAddress = (address: string): `0x${string}` 
 
   let uncompressed: Uint8Array;
   try {
-    // noble exposes toRawBytes in newer builds; fallback to toBytes for compatibility.
-    const point = Point.fromHex(bytesToHex(compressed));
-    uncompressed =
-      typeof (point as any).toRawBytes === 'function'
-        ? (point as any).toRawBytes(false)
-        : point.toBytes(false); // 65 bytes, 0x04 + X + Y
+    uncompressed = secp256k1.ProjectivePoint.fromHex(compressed).toRawBytes(false); // 65 bytes
   } catch (error) {
     throw new Error(`Invalid compressed public key for internal node address: ${(error as Error).message}`);
   }
