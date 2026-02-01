@@ -385,7 +385,13 @@ export function generateJobReport({
   doc.text(`Job ID: ${job.id}`, margin + 5, y);
   y += 5;
 
-  // Status badge
+  // Status label and badge
+  doc.setFontSize(7);
+  doc.setFont('Helvetica', 'normal');
+  doc.setTextColor(...colors.muted);
+  doc.text('Status:', margin + 5, y);
+  y += 4;
+
   const statusColor = job.status === 'completed' ? colors.primary :
                       job.status === 'stopped' ? colors.primary :
                       job.status === 'stopping' ? colors.warning :
@@ -397,12 +403,20 @@ export function generateJobReport({
   doc.setFont('Helvetica', 'bold');
   doc.text(job.status.toUpperCase(), margin + 10, y + 5.5);
 
-  // Priority badge
+  // Priority label and badge
+  doc.setFontSize(7);
+  doc.setFont('Helvetica', 'normal');
+  doc.setTextColor(...colors.muted);
+  doc.text('Priority:', margin + 60, y - 4);
+
   doc.setFillColor(...colors.secondary);
   doc.roundedRect(margin + 60, y, 40, 8, 2, 2, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(8);
+  doc.setFont('Helvetica', 'bold');
   doc.text(job.priority.toUpperCase(), margin + 65, y + 5.5);
 
-  y += 25;
+  y += 20;
 
   // Summary Stats - use reports data for accurate counts
   addHeader('Summary Statistics', 11);
