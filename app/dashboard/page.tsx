@@ -16,22 +16,19 @@ export default function DashboardPage(): JSX.Element {
   const { user, loading } = useAuth();
   const router = useRouter();
   const { config } = useAppConfig();
-  const { jobs, ongoingJobs, completedJobs, loading: loadingJobs, error, refresh } = useJobs();
-  const [filter, setFilter] = useState<'ongoing' | 'completed'>('completed');
+  const { jobs, ongoingJobs, completedJobs, stoppedJobs, loading: loadingJobs, error, refresh } = useJobs();
+  const [filter, setFilter] = useState<'ongoing' | 'completed' | 'stopped'>('completed');
 
-  const totalOpenPorts = completedJobs.reduce((acc, job) => {
-    const openPorts = job.aggregate?.openPorts ?? [];
-    return acc + openPorts.length;
-  }, 0);
+  // Jobs that have at least one completed pass (have findings data)
+  const finishedJobs = [...completedJobs, ...stoppedJobs];
+  const jobsWithPassHistory = finishedJobs.filter((job) => job.passHistory && job.passHistory.length > 0);
 
-  const highPriorityActive = jobs.filter(
-    (job) => (job.status === 'running' || job.status === 'stopping') && (job.priority === 'high' || job.priority === 'critical')
-  ).length;
-
-  const filteredJobs = filter === 'ongoing' ? ongoingJobs : completedJobs;
+  const filteredJobs = filter === 'ongoing' ? ongoingJobs : filter === 'stopped' ? stoppedJobs : completedJobs;
 
   const emptyState =
-    filter === 'ongoing' ? 'No ongoing tasks right now.' : 'No tasks in this state right now.';
+    filter === 'ongoing' ? 'No ongoing tasks right now.' :
+    filter === 'stopped' ? 'No stopped tasks.' :
+    'No completed tasks yet.';
 
   useEffect(() => {
     if (!loading && !user) {
@@ -98,7 +95,7 @@ export default function DashboardPage(): JSX.Element {
               <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-5 shadow-inner shadow-amber-900/40">
                 <p className="text-xs font-medium uppercase tracking-widest text-amber-200">Stopped</p>
                 <p className="mt-3 text-3xl font-semibold text-slate-50">
-                  {jobs.filter((job) => job.status === 'stopped').length}
+                  {stoppedJobs.length}
                 </p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-5 shadow-inner shadow-black/40">
@@ -111,13 +108,13 @@ export default function DashboardPage(): JSX.Element {
             </div>
             <div className="mt-4 grid gap-4 sm:grid-cols-3">
               <div className="rounded-xl border border-brand-primary/30 bg-brand-primary/10 px-4 py-3 text-xs text-slate-300">
-                <p className="text-brand-primary font-medium">Known open ports</p>
-                <p className="mt-1 text-2xl font-semibold text-brand-primary">{totalOpenPorts}</p>
+                <p className="text-brand-primary font-medium">Total tasks</p>
+                <p className="mt-1 text-2xl font-semibold text-brand-primary">{jobs.length}</p>
               </div>
               <div className="rounded-xl border border-white/10 bg-slate-900/60 px-4 py-3 text-xs text-slate-300">
-                <p className="text-slate-200">Tasks with findings</p>
+                <p className="text-slate-200">Tasks with scan data</p>
                 <p className="mt-1 text-2xl font-semibold text-slate-50">
-                  {completedJobs.filter((job) => (job.aggregate?.openPorts?.length ?? 0) > 0).length}
+                  {jobsWithPassHistory.length}
                 </p>
               </div>
               <div className="rounded-xl border border-white/10 bg-slate-900/60 px-4 py-3 text-xs text-slate-300">
@@ -138,7 +135,7 @@ export default function DashboardPage(): JSX.Element {
           description="Filter tasks by status and inspect their details."
           actions={
             <div className="flex gap-2">
-              {(['completed', 'ongoing'] as const).map((option) => (
+              {(['completed', 'ongoing', 'stopped'] as const).map((option) => (
                 <Button
                   key={option}
                   variant={filter === option ? 'primary' : 'secondary'}
