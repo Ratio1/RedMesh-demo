@@ -110,9 +110,9 @@ export default function DashboardPage(): JSX.Element {
               </div>
             </div>
             <div className="mt-4 grid gap-4 sm:grid-cols-3">
-              <div className="rounded-xl border border-white/10 bg-slate-900/60 px-4 py-3 text-xs text-slate-300">
-                <p className="text-slate-200">Known open ports</p>
-                <p className="mt-1 text-2xl font-semibold text-slate-50">{totalOpenPorts}</p>
+              <div className="rounded-xl border border-brand-primary/30 bg-brand-primary/10 px-4 py-3 text-xs text-slate-300">
+                <p className="text-brand-primary font-medium">Known open ports</p>
+                <p className="mt-1 text-2xl font-semibold text-brand-primary">{totalOpenPorts}</p>
               </div>
               <div className="rounded-xl border border-white/10 bg-slate-900/60 px-4 py-3 text-xs text-slate-300">
                 <p className="text-slate-200">Tasks with findings</p>

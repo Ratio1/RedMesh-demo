@@ -4,8 +4,8 @@ import clsx from 'clsx';
 import { PropsWithChildren, ReactNode } from 'react';
 
 interface CardProps extends PropsWithChildren {
-  title?: string;
-  description?: string;
+  title?: ReactNode;
+  description?: ReactNode;
   actions?: ReactNode;
   className?: string;
 }

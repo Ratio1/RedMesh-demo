@@ -163,7 +163,10 @@ export default function JobList({
                   <p className="text-sm font-semibold text-brand-primary">Aggregate findings</p>
                   <div className="mt-2 flex flex-wrap gap-3">
                     <span>
-                      Open ports: {job.aggregate.openPorts.join(', ')}
+                      Open ports:{' '}
+                      <span className="font-semibold text-brand-primary">
+                        {job.aggregate.openPorts.join(', ')}
+                      </span>
                     </span>
                     <span>
                       Services monitored: {Object.keys(job.aggregate.serviceSummary).length}
