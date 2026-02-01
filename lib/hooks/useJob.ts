@@ -1,12 +1,14 @@
 'use client';
 
 import { useAuth } from '@/components/auth/AuthContext';
-import { Job, WorkerReport } from '@/lib/api/types';
+import { Job, WorkerReport, LlmAnalysis } from '@/lib/api/types';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface JobState {
   job: Job | null;
   reports: Record<string, WorkerReport>;
+  /** LLM analysis content for each pass (passNr -> analysis) */
+  llmAnalyses: Record<number, LlmAnalysis>;
   loading: boolean;
   error: string | null;
   notFound: boolean;
@@ -21,6 +23,7 @@ export default function useJob(jobId: string): JobState {
   const { token, loading: authLoading } = useAuth();
   const [job, setJob] = useState<Job | null>(null);
   const [reports, setReports] = useState<Record<string, WorkerReport>>({});
+  const [llmAnalyses, setLlmAnalyses] = useState<Record<number, LlmAnalysis>>({});
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState<boolean>(false);
@@ -61,6 +64,7 @@ export default function useJob(jobId: string): JobState {
 
       setJob(payload.job ?? null);
       setReports((payload.reports as Record<string, WorkerReport>) ?? {});
+      setLlmAnalyses((payload.llmAnalyses as Record<number, LlmAnalysis>) ?? {});
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
         return;
@@ -90,6 +94,7 @@ export default function useJob(jobId: string): JobState {
   return {
     job,
     reports,
+    llmAnalyses,
     loading,
     error,
     notFound,

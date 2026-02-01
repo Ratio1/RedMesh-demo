@@ -6,3 +6,4 @@ export { WorkerActivityTable } from './WorkerActivityTable';
 export { JobTimeline } from './JobTimeline';
 export { DetailedWorkerReports } from './DetailedWorkerReports';
 export { WorkerReportsHistory } from './WorkerReportsHistory';
+export { LlmAnalysis } from './LlmAnalysis';

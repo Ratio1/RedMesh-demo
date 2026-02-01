@@ -24,6 +24,7 @@ import {
   JobTimeline,
   DetailedWorkerReports,
   WorkerReportsHistory,
+  LlmAnalysis,
 } from './components';
 
 // PDF generation
@@ -33,7 +34,7 @@ export default function JobDetailsPage(): JSX.Element {
   const params = useParams<{ jobId: string }>();
   const router = useRouter();
   const { user, loading } = useAuth();
-  const { job, reports, refresh, loading: jobLoading, error: jobError, notFound } = useJob(params.jobId);
+  const { job, reports, llmAnalyses, refresh, loading: jobLoading, error: jobError, notFound } = useJob(params.jobId);
   const { stopJob, stopMonitoring, loading: actionLoading } = useJobActions();
 
   const [stopping, setStopping] = useState(false);
@@ -169,6 +170,13 @@ export default function JobDetailsPage(): JSX.Element {
           <JobMeta job={job} workerActivity={workerActivity} />
         </section>
 
+        {/* LLM Analysis for singlepass jobs - show above discovered ports */}
+        {job.runMode === 'singlepass' && llmAnalyses[1] && (
+          <section>
+            <LlmAnalysis analysis={llmAnalyses[1]} />
+          </section>
+        )}
+
         <section>
           <DiscoveredPorts aggregatedPorts={aggregatedPorts} />
         </section>
@@ -180,7 +188,7 @@ export default function JobDetailsPage(): JSX.Element {
 
         <DetailedWorkerReports mergedWorkers={mergedWorkers} />
 
-        <WorkerReportsHistory job={job} reports={reports} />
+        <WorkerReportsHistory job={job} reports={reports} llmAnalyses={llmAnalyses} />
 
         <Card
           title="Download report"

@@ -6,7 +6,8 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import CopyableText from '@/components/ui/CopyableText';
-import type { Job, WorkerReport, PassHistoryEntry } from '@/lib/api/types';
+import type { Job, WorkerReport, PassHistoryEntry, LlmAnalysis } from '@/lib/api/types';
+import { LlmAnalysis as LlmAnalysisComponent } from './LlmAnalysis';
 
 function formatDate(value?: string): string {
   if (!value) return '--';
@@ -20,9 +21,10 @@ function formatDate(value?: string): string {
 interface WorkerReportsHistoryProps {
   job: Job;
   reports: Record<string, WorkerReport>;
+  llmAnalyses?: Record<number, LlmAnalysis>;
 }
 
-export function WorkerReportsHistory({ job, reports }: WorkerReportsHistoryProps) {
+export function WorkerReportsHistory({ job, reports, llmAnalyses }: WorkerReportsHistoryProps) {
   const [workerReportsExpanded, setWorkerReportsExpanded] = useState(false);
   const [expandedReports, setExpandedReports] = useState<Set<string>>(new Set());
 
@@ -84,6 +86,15 @@ export function WorkerReportsHistory({ job, reports }: WorkerReportsHistoryProps
                   Completed: {formatDate(pass.completedAt)}
                 </span>
               </div>
+              {/* LLM Analysis for this pass (continuous mode) */}
+              {llmAnalyses && llmAnalyses[pass.passNr] && (
+                <div className="mb-4">
+                  <LlmAnalysisComponent
+                    analysis={llmAnalyses[pass.passNr]}
+                    passNr={pass.passNr}
+                  />
+                </div>
+              )}
               <div className="grid gap-4 md:grid-cols-2">
                 {Object.entries(pass.reports).map(([nodeAddr, cid]) => {
                   const report = reports[cid] as WorkerReport | undefined;

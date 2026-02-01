@@ -134,6 +134,69 @@ export async function fetchReportByCid(cid: string): Promise<Record<string, unkn
 }
 
 /**
+ * Raw LLM analysis data from API (snake_case)
+ */
+interface RawLlmAnalysis {
+  analysis_type?: string;
+  content?: string;
+  created_at?: number;
+  focus_areas?: string[] | null;
+  model?: string;
+  scan_summary?: {
+    has_service_info?: boolean;
+    has_web_tests?: boolean;
+    open_ports?: number;
+  };
+  usage?: {
+    completion_tokens?: number;
+    prompt_tokens?: number;
+    total_tokens?: number;
+  };
+}
+
+/**
+ * Transform raw LLM analysis to camelCase format
+ */
+function transformLlmAnalysis(raw: RawLlmAnalysis): Record<string, unknown> {
+  return {
+    analysisType: raw.analysis_type ?? 'security_assessment',
+    content: raw.content ?? '',
+    createdAt: raw.created_at
+      ? new Date(raw.created_at * 1000).toISOString()
+      : new Date().toISOString(),
+    focusAreas: raw.focus_areas ?? null,
+    model: raw.model ?? 'unknown',
+    scanSummary: {
+      hasServiceInfo: raw.scan_summary?.has_service_info ?? false,
+      hasWebTests: raw.scan_summary?.has_web_tests ?? false,
+      openPorts: raw.scan_summary?.open_ports ?? 0
+    },
+    usage: {
+      completionTokens: raw.usage?.completion_tokens ?? 0,
+      promptTokens: raw.usage?.prompt_tokens ?? 0,
+      totalTokens: raw.usage?.total_tokens ?? 0
+    }
+  };
+}
+
+/**
+ * Fetch LLM analysis content by CID from R1FS.
+ * Uses the /get_report endpoint which retrieves content from R1FS.
+ */
+export async function fetchLlmAnalysisByCid(cid: string): Promise<Record<string, unknown> | null> {
+  try {
+    const { getRedMeshApiService } = await import('./redmeshApi');
+    const api = getRedMeshApiService();
+    const result = await api.getReport(cid);
+    const rawAnalysis = result.report as unknown as RawLlmAnalysis;
+    return transformLlmAnalysis(rawAnalysis);
+  } catch (error) {
+    console.error(`[fetchLlmAnalysisByCid] Failed to fetch CID ${cid}:`, error);
+    return null;
+  }
+}
+
+/**
  * Fetch JSON content for multiple CIDs from R1FS.
  * Returns a mapping of { cid: json_content }.
  */
