@@ -101,8 +101,92 @@ export default function JobDetailsPage(): JSX.Element {
     });
 
     const sortedPorts = Array.from(portsSet).sort((a, b) => a - b);
-    return { ports: sortedPorts, services: serviceMap, webTests: webTestsMap };
+
+    // Count total services (sum of all service probes across all ports)
+    let totalServices = 0;
+    serviceMap.forEach((info) => {
+      totalServices += Object.keys(info).length;
+    });
+
+    // Count total web test findings (sum of all tests across all ports)
+    let totalFindings = 0;
+    webTestsMap.forEach((info) => {
+      totalFindings += Object.keys(info).length;
+    });
+
+    return {
+      ports: sortedPorts,
+      services: serviceMap,
+      webTests: webTestsMap,
+      totalServices,
+      totalFindings
+    };
   }, [reports, job?.workers]);
+
+  // Build worker activity from reports only - each report represents one node's work
+  const workerActivity = useMemo(() => {
+    if (!reports || Object.keys(reports).length === 0) return [];
+
+    return Object.entries(reports).map(([nodeAddress, report]) => ({
+      nodeAddress,
+      startPort: report.startPort,
+      endPort: report.endPort,
+      progress: report.done ? 100 : Math.round((report.portsScanned / (report.endPort - report.startPort + 1)) * 100),
+      openPorts: report.openPorts,
+      done: report.done
+    })).sort((a, b) => a.startPort - b.startPort);
+  }, [reports]);
+
+  // Merge job.workers with reports data to get complete worker info (for detailed reports section)
+  const mergedWorkers = useMemo(() => {
+    if (!job) return [];
+
+    const workersMap = new Map<string, typeof job.workers[0]>();
+
+    // Helper to create unique key from worker id and port range
+    const makeKey = (id: string, startPort: number, endPort: number) => `${id}:${startPort}-${endPort}`;
+
+    // Start with job.workers
+    job.workers.forEach((worker) => {
+      const key = makeKey(worker.id, worker.startPort, worker.endPort);
+      workersMap.set(key, { ...worker });
+    });
+
+    // Merge in data from reports (which may have more complete openPorts)
+    // Reports are keyed by node address (Qm...), but job.workers use localWorkerId (RM-X-...)
+    Object.entries(reports).forEach(([_nodeAddress, report]) => {
+      const displayId = report.localWorkerId || _nodeAddress;
+      const key = makeKey(displayId, report.startPort, report.endPort);
+      const existing = workersMap.get(key);
+      if (existing) {
+        // Merge openPorts from both sources (same worker, same port range)
+        const allPorts = new Set([...existing.openPorts, ...report.openPorts]);
+        workersMap.set(key, {
+          ...existing,
+          openPorts: Array.from(allPorts).sort((a, b) => a - b),
+          serviceInfo: { ...existing.serviceInfo, ...report.serviceInfo },
+          webTestsInfo: { ...existing.webTestsInfo, ...report.webTestsInfo }
+        });
+      } else {
+        // Worker only exists in reports, add it
+        workersMap.set(key, {
+          id: displayId,
+          startPort: report.startPort,
+          endPort: report.endPort,
+          progress: report.done ? 100 : 0,
+          done: report.done,
+          canceled: report.canceled,
+          portsScanned: report.portsScanned,
+          openPorts: report.openPorts,
+          serviceInfo: report.serviceInfo,
+          webTestsInfo: report.webTestsInfo,
+          completedTests: report.completedTests
+        });
+      }
+    });
+
+    return Array.from(workersMap.values());
+  }, [job, reports]);
 
   const handleStopJob = async () => {
     if (!job) return;
@@ -1126,30 +1210,30 @@ export default function JobDetailsPage(): JSX.Element {
                 <div className="grid grid-cols-3 gap-4">
                   <div className="text-center p-4 rounded-lg bg-brand-primary/10 border border-brand-primary/30">
                     <div className="text-3xl font-bold text-brand-primary">
-                      {job.aggregate?.openPorts.length ?? aggregatedPorts.ports.length}
+                      {aggregatedPorts.ports.length}
                     </div>
                     <div className="text-xs text-slate-400 mt-1">Open Ports</div>
                   </div>
                   <div className="text-center p-4 rounded-lg bg-slate-800/50 border border-white/10">
                     <div className="text-3xl font-bold text-slate-100">
-                      {job.aggregate ? Object.keys(job.aggregate.serviceSummary).length : aggregatedPorts.services.size}
+                      {aggregatedPorts.totalServices}
                     </div>
                     <div className="text-xs text-slate-400 mt-1">Services</div>
                   </div>
                   <div className="text-center p-4 rounded-lg bg-slate-800/50 border border-white/10">
                     <div className="text-3xl font-bold text-slate-100">
-                      {job.aggregate ? Object.keys(job.aggregate.webFindings).length : aggregatedPorts.webTests.size}
+                      {aggregatedPorts.totalFindings}
                     </div>
                     <div className="text-xs text-slate-400 mt-1">Findings</div>
                   </div>
                 </div>
 
                 {/* Port list */}
-                {(job.aggregate?.openPorts.length ?? aggregatedPorts.ports.length) > 0 && (
+                {aggregatedPorts.ports.length > 0 && (
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs text-slate-500 uppercase tracking-wide">Ports:</span>
                     <span className="text-sm text-slate-300">
-                      {(job.aggregate?.openPorts ?? aggregatedPorts.ports).join(', ')}
+                      {aggregatedPorts.ports.join(', ')}
                     </span>
                   </div>
                 )}
@@ -1454,23 +1538,27 @@ export default function JobDetailsPage(): JSX.Element {
 
         <section className="grid gap-6 lg:grid-cols-2">
           <Card title="Worker activity" description="Per-worker coverage and progress">
-            {job.workers.length === 0 ? (
+            {workerActivity.length === 0 ? (
               <p className="text-sm text-slate-300">No workers attached yet.</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-white/10 text-left text-sm text-slate-200">
                   <thead className="text-xs uppercase tracking-widest text-slate-400">
                     <tr>
-                      <th className="px-3 py-2">Worker</th>
+                      <th className="px-3 py-2">Node</th>
                       <th className="px-3 py-2">Port range</th>
                       <th className="px-3 py-2">Progress</th>
                       <th className="px-3 py-2 text-brand-primary">Open ports</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/10">
-                    {job.workers.map((worker) => (
-                      <tr key={worker.id}>
-                        <td className="px-3 py-2 font-semibold text-slate-100">{worker.id}</td>
+                    {workerActivity.map((worker) => (
+                      <tr key={`${worker.nodeAddress}-${worker.startPort}-${worker.endPort}`}>
+                        <td className="px-3 py-2 font-mono text-xs text-slate-100" title={worker.nodeAddress}>
+                          {worker.nodeAddress.length > 20
+                            ? `${worker.nodeAddress.slice(0, 8)}...${worker.nodeAddress.slice(-8)}`
+                            : worker.nodeAddress}
+                        </td>
                         <td className="px-3 py-2 text-slate-300">
                           {worker.startPort} - {worker.endPort}
                         </td>
@@ -1506,7 +1594,7 @@ export default function JobDetailsPage(): JSX.Element {
         </section>
 
         {/* Detailed Worker Reports - Service Info and Web Tests */}
-        {job.workers.some(w => Object.keys(w.serviceInfo).length > 0 || Object.keys(w.webTestsInfo).length > 0) && (
+        {mergedWorkers.some(w => Object.keys(w.serviceInfo).length > 0 || Object.keys(w.webTestsInfo).length > 0) && (
           <Card
             title={
               <button
@@ -1523,7 +1611,7 @@ export default function JobDetailsPage(): JSX.Element {
                 </svg>
                 <span>Detailed Scan Results</span>
                 <span className="text-xs text-slate-500 font-normal">
-                  ({job.workers.filter(w => Object.keys(w.serviceInfo).length > 0 || Object.keys(w.webTestsInfo).length > 0).length} workers with findings)
+                  ({mergedWorkers.filter(w => Object.keys(w.serviceInfo).length > 0 || Object.keys(w.webTestsInfo).length > 0).length} workers with findings)
                 </span>
               </button>
             }
@@ -1535,7 +1623,7 @@ export default function JobDetailsPage(): JSX.Element {
               </p>
             ) : (
             <div className="space-y-6">
-              {job.workers.filter(w => Object.keys(w.serviceInfo).length > 0 || Object.keys(w.webTestsInfo).length > 0).map((worker) => (
+              {mergedWorkers.filter(w => Object.keys(w.serviceInfo).length > 0 || Object.keys(w.webTestsInfo).length > 0).map((worker) => (
                 <div key={worker.id} className="rounded-lg border border-white/10 bg-slate-800/50 p-4">
                   <div className="flex items-center justify-between mb-4">
                     <div>
