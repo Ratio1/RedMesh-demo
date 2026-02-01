@@ -241,10 +241,6 @@ export function LlmAnalysis({ analysis, passNr }: LlmAnalysisProps) {
           {/* Metadata Bar */}
           <div className="flex flex-wrap items-center gap-4 p-3 rounded-lg bg-slate-800/50 border border-white/5">
             <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400">Model:</span>
-              <Badge tone="neutral" label={analysis.model} />
-            </div>
-            <div className="flex items-center gap-2">
               <span className="text-xs text-slate-400">Type:</span>
               <Badge tone="neutral" label={analysis.analysisType.replace(/_/g, ' ')} />
             </div>
@@ -260,13 +256,6 @@ export function LlmAnalysis({ analysis, passNr }: LlmAnalysisProps) {
                 {formatDate(analysis.createdAt)}
               </span>
             </div>
-            {analysis.usage.totalTokens > 0 && (
-              <div className="flex items-center gap-2 ml-auto">
-                <span className="text-xs text-slate-500">
-                  {analysis.usage.totalTokens.toLocaleString()} tokens
-                </span>
-              </div>
-            )}
           </div>
 
           {/* Analysis Content */}

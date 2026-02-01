@@ -169,7 +169,6 @@ export function generateJobReport({
     doc.setFont('Helvetica', 'normal');
     doc.setTextColor(...colors.muted);
     const metaInfo = [
-      `Model: ${analysis.model}`,
       `Type: ${analysis.analysisType.replace(/_/g, ' ')}`,
       `Open Ports: ${analysis.scanSummary.openPorts}`,
       `Generated: ${formatDate(analysis.createdAt)}`,
