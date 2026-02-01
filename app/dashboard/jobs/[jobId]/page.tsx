@@ -387,17 +387,19 @@ export default function JobDetailsPage(): JSX.Element {
 
     y += 25;
 
-    // Summary Stats
+    // Summary Stats - use reports data for accurate counts
     addHeader('Summary Statistics', 11);
     y += 2;
 
-    const totalOpenPorts = job.aggregate?.openPorts?.length || job.workers.reduce((sum, w) => sum + w.openPorts.length, 0);
-    const totalPortsScanned = job.workers.reduce((sum, w) => sum + w.portsScanned, 0);
+    const reportsList = Object.values(reports);
+    // Use aggregatedPorts which combines all sources (reports + job.workers + job.aggregate)
+    const totalOpenPorts = aggregatedPorts.ports.length;
+    const totalPortsScanned = reportsList.reduce((sum, r) => sum + r.portsScanned, 0);
     const workersWithDetails = job.workers.filter(w => Object.keys(w.serviceInfo).length > 0 || Object.keys(w.webTestsInfo).length > 0);
-    const workersWithFindings = workersWithDetails.length;
+    const workersWithFindings = reportsList.filter(r => r.openPorts.length > 0 || Object.keys(r.serviceInfo).length > 0).length;
 
     const stats = [
-      { label: 'Workers', value: String(job.workerCount) },
+      { label: 'Workers', value: String(workerActivity.length || job.workerCount) },
       { label: 'Port Range', value: `${job.portRange?.start ?? 1} - ${job.portRange?.end ?? 65535}` },
       { label: 'Ports Scanned', value: String(totalPortsScanned) },
       { label: 'Open Ports Found', value: String(totalOpenPorts) },
@@ -1338,7 +1340,7 @@ export default function JobDetailsPage(): JSX.Element {
               )}
               <div className="flex items-center justify-between">
                 <dt>Workers</dt>
-                <dd className="text-slate-100">{job.workerCount}</dd>
+                <dd className="text-slate-100">{workerActivity.length || job.workerCount}</dd>
               </div>
             </dl>
 
