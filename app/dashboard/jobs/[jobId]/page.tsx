@@ -95,6 +95,7 @@ export default function JobDetailsPage(): JSX.Element {
       reports,
       aggregatedPorts,
       workerActivity,
+      llmAnalyses,
     });
   };
 

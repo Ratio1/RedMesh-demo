@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import { format } from 'date-fns';
-import type { Job, WorkerReport } from '@/lib/api/types';
+import type { Job, WorkerReport, LlmAnalysis } from '@/lib/api/types';
 import type { AggregatedPortsData, WorkerActivityItem } from '@/app/dashboard/jobs/[jobId]/types';
 
 type RGB = [number, number, number];
@@ -10,6 +10,8 @@ interface PDFColors {
   secondary: RGB;
   danger: RGB;
   warning: RGB;
+  success: RGB;
+  info: RGB;
   text: RGB;
   muted: RGB;
   light: RGB;
@@ -29,6 +31,7 @@ interface GenerateJobReportParams {
   reports: Record<string, WorkerReport>;
   aggregatedPorts: AggregatedPortsData;
   workerActivity: WorkerActivityItem[];
+  llmAnalyses?: Record<number, LlmAnalysis>;
 }
 
 /**
@@ -39,6 +42,7 @@ export function generateJobReport({
   reports,
   aggregatedPorts,
   workerActivity,
+  llmAnalyses,
 }: GenerateJobReportParams): void {
   const doc = new jsPDF();
   let y = 20;
@@ -52,6 +56,8 @@ export function generateJobReport({
     secondary: [71, 85, 105],   // slate-500
     danger: [239, 68, 68],      // red-500
     warning: [245, 158, 11],    // amber-500
+    success: [34, 197, 94],     // green-500
+    info: [59, 130, 246],       // blue-500
     text: [30, 41, 59],         // slate-800
     muted: [100, 116, 139],     // slate-500
     light: [241, 245, 249],     // slate-100
@@ -117,6 +123,230 @@ export function generateJobReport({
     doc.setLineWidth(0.5);
     doc.line(margin, y, pageWidth - margin, y);
     y += 6;
+  };
+
+  /**
+   * Render LLM analysis markdown content to PDF
+   */
+  const renderLlmAnalysis = (analysis: LlmAnalysis, passNr?: number): void => {
+    // Section header with AI icon indicator
+    checkPageBreak(40);
+
+    // Header bar
+    doc.setFillColor(147, 51, 234); // purple-600
+    doc.roundedRect(margin, y, contentWidth, 14, 2, 2, 'F');
+    y += 4;
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(12);
+    doc.setFont('Helvetica', 'bold');
+    const title = passNr !== undefined ? `AI Security Analysis (Pass #${passNr})` : 'AI Security Analysis';
+    doc.text(title, margin + 5, y + 5);
+    y += 18;
+
+    // Description box
+    doc.setFillColor(243, 232, 255); // purple-100
+    doc.roundedRect(margin, y, contentWidth, 16, 2, 2, 'F');
+    y += 4;
+    doc.setFontSize(8);
+    doc.setFont('Helvetica', 'normal');
+    doc.setTextColor(107, 33, 168); // purple-700
+    const description = 'This AI-generated security assessment is automatically created for completed scans. ' +
+      'It analyzes discovered services, open ports, and potential vulnerabilities to provide actionable insights.';
+    const descWrapped = doc.splitTextToSize(description, contentWidth - 10);
+    descWrapped.forEach((line: string) => {
+      doc.text(line, margin + 5, y + 3);
+      y += 4;
+    });
+    y += 6;
+
+    // Metadata bar
+    doc.setFillColor(...colors.light);
+    doc.roundedRect(margin, y, contentWidth, 12, 2, 2, 'F');
+    y += 4;
+
+    doc.setFontSize(7);
+    doc.setFont('Helvetica', 'normal');
+    doc.setTextColor(...colors.muted);
+    const metaInfo = [
+      `Model: ${analysis.model}`,
+      `Type: ${analysis.analysisType.replace(/_/g, ' ')}`,
+      `Open Ports: ${analysis.scanSummary.openPorts}`,
+      `Generated: ${formatDate(analysis.createdAt)}`,
+    ];
+    doc.text(metaInfo.join('  |  '), margin + 5, y + 4);
+    y += 15;
+
+    // Render markdown content
+    const lines = analysis.content.split('\n');
+    let inCodeBlock = false;
+    let inList = false;
+
+    for (const line of lines) {
+      // Code block handling
+      if (line.startsWith('```')) {
+        inCodeBlock = !inCodeBlock;
+        if (inCodeBlock) {
+          y += 2;
+          doc.setFillColor(30, 41, 59); // slate-800
+        }
+        continue;
+      }
+
+      if (inCodeBlock) {
+        checkPageBreak(5);
+        doc.setFillColor(30, 41, 59);
+        doc.rect(margin, y - 3, contentWidth, 5, 'F');
+        doc.setFont('Courier', 'normal');
+        doc.setFontSize(7);
+        doc.setTextColor(200, 200, 200);
+        const wrapped = doc.splitTextToSize(line, contentWidth - 10);
+        wrapped.forEach((wl: string) => {
+          doc.text(wl, margin + 5, y);
+          y += 4;
+        });
+        continue;
+      }
+
+      // Headers
+      if (line.startsWith('# ')) {
+        checkPageBreak(12);
+        y += 4;
+        doc.setFontSize(14);
+        doc.setFont('Helvetica', 'bold');
+        doc.setTextColor(...colors.text);
+        const text = line.slice(2).replace(/\*\*/g, '');
+        const wrapped = doc.splitTextToSize(text, contentWidth);
+        wrapped.forEach((wl: string) => {
+          doc.text(wl, margin, y);
+          y += 6;
+        });
+        y += 2;
+        continue;
+      }
+      if (line.startsWith('## ')) {
+        checkPageBreak(10);
+        y += 3;
+        doc.setFontSize(11);
+        doc.setFont('Helvetica', 'bold');
+        doc.setTextColor(...colors.primary);
+        const text = line.slice(3).replace(/\*\*/g, '');
+        const wrapped = doc.splitTextToSize(text, contentWidth);
+        wrapped.forEach((wl: string) => {
+          doc.text(wl, margin, y);
+          y += 5;
+        });
+        // Underline
+        doc.setDrawColor(...colors.light);
+        doc.setLineWidth(0.3);
+        doc.line(margin, y, pageWidth - margin, y);
+        y += 4;
+        continue;
+      }
+      if (line.startsWith('### ')) {
+        checkPageBreak(8);
+        y += 2;
+        doc.setFontSize(10);
+        doc.setFont('Helvetica', 'bold');
+        doc.setTextColor(...colors.secondary);
+        const text = line.slice(4).replace(/\*\*/g, '');
+        const wrapped = doc.splitTextToSize(text, contentWidth);
+        wrapped.forEach((wl: string) => {
+          doc.text(wl, margin, y);
+          y += 4.5;
+        });
+        y += 1;
+        continue;
+      }
+      if (line.startsWith('#### ')) {
+        checkPageBreak(7);
+        y += 1;
+        doc.setFontSize(9);
+        doc.setFont('Helvetica', 'bold');
+        doc.setTextColor(...colors.text);
+        const text = line.slice(5).replace(/\*\*/g, '');
+        const wrapped = doc.splitTextToSize(text, contentWidth);
+        wrapped.forEach((wl: string) => {
+          doc.text(wl, margin, y);
+          y += 4;
+        });
+        continue;
+      }
+
+      // List items
+      if (line.match(/^[-*]\s/)) {
+        checkPageBreak(5);
+        inList = true;
+        doc.setFontSize(8);
+        doc.setFont('Helvetica', 'normal');
+        doc.setTextColor(...colors.text);
+
+        // Check for bold text in list item
+        let text = line.slice(2);
+        const boldMatch = text.match(/^\*\*([^*]+)\*\*:?\s*(.*)/);
+        if (boldMatch) {
+          doc.setFont('Helvetica', 'bold');
+          doc.text('• ' + boldMatch[1] + ':', margin + 5, y);
+          const labelWidth = doc.getTextWidth('• ' + boldMatch[1] + ': ');
+          doc.setFont('Helvetica', 'normal');
+          if (boldMatch[2]) {
+            const wrapped = doc.splitTextToSize(boldMatch[2], contentWidth - 10 - labelWidth);
+            wrapped.forEach((wl: string, idx: number) => {
+              if (idx === 0) {
+                doc.text(wl, margin + 5 + labelWidth, y);
+              } else {
+                y += 4;
+                checkPageBreak(4);
+                doc.text(wl, margin + 10, y);
+              }
+            });
+          }
+        } else {
+          text = text.replace(/\*\*([^*]+)\*\*/g, '$1');
+          const wrapped = doc.splitTextToSize('• ' + text, contentWidth - 5);
+          wrapped.forEach((wl: string, idx: number) => {
+            if (idx > 0) {
+              checkPageBreak(4);
+            }
+            doc.text(wl, margin + 5, y);
+            y += 4;
+          });
+          y -= 4; // Adjust for loop increment
+        }
+        y += 4;
+        continue;
+      }
+
+      // Empty line
+      if (line.trim() === '') {
+        inList = false;
+        y += 3;
+        continue;
+      }
+
+      // Regular paragraph
+      checkPageBreak(5);
+      doc.setFontSize(8);
+      doc.setFont('Helvetica', 'normal');
+      doc.setTextColor(...colors.text);
+
+      // Handle inline formatting
+      let text = line
+        .replace(/\*\*([^*]+)\*\*/g, '$1') // Remove bold markers (can't do real bold inline easily)
+        .replace(/\*([^*]+)\*/g, '$1')     // Remove italic markers
+        .replace(/`([^`]+)`/g, '$1');       // Remove code markers
+
+      const wrapped = doc.splitTextToSize(text, contentWidth);
+      wrapped.forEach((wl: string) => {
+        checkPageBreak(4);
+        doc.text(wl, margin, y);
+        y += 4;
+      });
+      y += 1;
+    }
+
+    y += 5;
+    addDivider();
   };
 
   // === COVER PAGE ===
@@ -225,6 +455,13 @@ export function generateJobReport({
       y += 4.5;
     });
     y += 3;
+  }
+
+  // AI Security Analysis for singlepass jobs (show at top level)
+  if (job.runMode === 'singlepass' && llmAnalyses && llmAnalyses[1]) {
+    doc.addPage();
+    y = 20;
+    renderLlmAnalysis(llmAnalyses[1]);
   }
 
   // Configuration Section
@@ -614,6 +851,11 @@ export function generateJobReport({
       doc.text(`Completed: ${formatDate(pass.completedAt)}`, margin + 60, y + 4);
 
       y += 15;
+
+      // LLM Analysis for this pass (continuous mode)
+      if (llmAnalyses && llmAnalyses[pass.passNr]) {
+        renderLlmAnalysis(llmAnalyses[pass.passNr], pass.passNr);
+      }
 
       // Reports for this pass
       if (pass.reports && Object.keys(pass.reports).length > 0) {
