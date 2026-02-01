@@ -47,7 +47,6 @@ export default function JobDetailsPage(): JSX.Element {
   const [selectedPort, setSelectedPort] = useState<number | null>(null);
   const [detailedResultsExpanded, setDetailedResultsExpanded] = useState(false);
   const [workerReportsExpanded, setWorkerReportsExpanded] = useState(false);
-  const [aggregateExpanded, setAggregateExpanded] = useState(false);
 
   // Aggregate all open ports from worker reports
   const aggregatedPorts = useMemo(() => {
@@ -1111,26 +1110,8 @@ export default function JobDetailsPage(): JSX.Element {
 
         <section className="grid gap-6 lg:grid-cols-3">
           <Card
-            title={
-              <button
-                onClick={() => setAggregateExpanded(!aggregateExpanded)}
-                className="flex items-center gap-2 w-full text-left cursor-pointer group"
-              >
-                <svg
-                  className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${aggregateExpanded ? 'rotate-90' : ''}`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-                <span>Aggregate Findings</span>
-                <span className="text-xs text-slate-500 font-normal">
-                  ({job.aggregate?.openPorts.length ?? aggregatedPorts.ports.length} open ports, {job.aggregate ? Object.keys(job.aggregate.serviceSummary).length : aggregatedPorts.services.size} services)
-                </span>
-              </button>
-            }
-            description={aggregateExpanded ? "Consolidated report from all workers" : undefined}
+            title="Aggregate Findings"
+            description="Quick overview of scan results"
             className="lg:col-span-2"
           >
             {!job.aggregate && aggregatedPorts.ports.length === 0 && aggregatedPorts.services.size === 0 ? (
@@ -1139,123 +1120,37 @@ export default function JobDetailsPage(): JSX.Element {
                   ? 'No open ports or services were detected during this scan.'
                   : 'Aggregated findings will appear once workers publish their reports.'}
               </p>
-            ) : !aggregateExpanded ? (
-              <div className="flex flex-wrap gap-4">
-                {/* Summary stats when collapsed */}
-                <div className="flex items-center gap-2 rounded-lg bg-brand-primary/10 border border-brand-primary/30 px-3 py-2">
-                  <span className="text-2xl font-bold text-brand-primary">{job.aggregate?.openPorts.length ?? aggregatedPorts.ports.length}</span>
-                  <span className="text-xs text-slate-400">Open Ports</span>
-                </div>
-                <div className="flex items-center gap-2 rounded-lg bg-slate-800/50 border border-white/10 px-3 py-2">
-                  <span className="text-2xl font-bold text-slate-100">{job.aggregate ? Object.keys(job.aggregate.serviceSummary).length : aggregatedPorts.services.size}</span>
-                  <span className="text-xs text-slate-400">Services</span>
-                </div>
-                <div className="flex items-center gap-2 rounded-lg bg-slate-800/50 border border-white/10 px-3 py-2">
-                  <span className="text-2xl font-bold text-slate-100">{job.aggregate ? Object.keys(job.aggregate.webFindings).length : aggregatedPorts.webTests.size}</span>
-                  <span className="text-xs text-slate-400">Web Findings</span>
-                </div>
-                <p className="w-full text-sm text-slate-500 mt-1">Click to expand and view details.</p>
-              </div>
             ) : (
               <div className="space-y-4">
-                {/* Open Ports - highlighted */}
-                <div className="rounded-lg bg-brand-primary/10 border border-brand-primary/30 p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <svg className="w-5 h-5 text-brand-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    <p className="text-sm font-semibold text-brand-primary uppercase tracking-wide">
-                      Open Ports ({job.aggregate?.openPorts.length ?? aggregatedPorts.ports.length})
-                    </p>
-                  </div>
-                  {(job.aggregate?.openPorts.length ?? aggregatedPorts.ports.length) > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {(job.aggregate?.openPorts ?? aggregatedPorts.ports).map((port) => (
-                        <span
-                          key={port}
-                          className="inline-flex items-center rounded-full bg-brand-primary/20 border border-brand-primary/40 px-3 py-1 text-sm font-semibold text-brand-primary"
-                        >
-                          {port}
-                        </span>
-                      ))}
+                {/* Metrics row */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center p-4 rounded-lg bg-brand-primary/10 border border-brand-primary/30">
+                    <div className="text-3xl font-bold text-brand-primary">
+                      {job.aggregate?.openPorts.length ?? aggregatedPorts.ports.length}
                     </div>
-                  ) : (
-                    <p className="text-sm text-slate-400">None detected</p>
-                  )}
+                    <div className="text-xs text-slate-400 mt-1">Open Ports</div>
+                  </div>
+                  <div className="text-center p-4 rounded-lg bg-slate-800/50 border border-white/10">
+                    <div className="text-3xl font-bold text-slate-100">
+                      {job.aggregate ? Object.keys(job.aggregate.serviceSummary).length : aggregatedPorts.services.size}
+                    </div>
+                    <div className="text-xs text-slate-400 mt-1">Services</div>
+                  </div>
+                  <div className="text-center p-4 rounded-lg bg-slate-800/50 border border-white/10">
+                    <div className="text-3xl font-bold text-slate-100">
+                      {job.aggregate ? Object.keys(job.aggregate.webFindings).length : aggregatedPorts.webTests.size}
+                    </div>
+                    <div className="text-xs text-slate-400 mt-1">Findings</div>
+                  </div>
                 </div>
 
-                {/* Service Summary */}
-                {(job.aggregate ? Object.keys(job.aggregate.serviceSummary).length > 0 : aggregatedPorts.services.size > 0) && (
-                  <div className="rounded-lg bg-slate-800/50 border border-white/10 p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2" />
-                      </svg>
-                      <p className="text-sm font-semibold text-emerald-400 uppercase tracking-wide">
-                        Service Summary ({job.aggregate ? Object.keys(job.aggregate.serviceSummary).length : aggregatedPorts.services.size})
-                      </p>
-                    </div>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {job.aggregate ? (
-                        Object.entries(job.aggregate.serviceSummary).map(([key, value]) => (
-                          <div key={key} className="rounded bg-slate-900/50 px-3 py-2 text-sm">
-                            <span className="font-semibold text-emerald-400">{key}:</span>{' '}
-                            <span className="text-slate-300">{value}</span>
-                          </div>
-                        ))
-                      ) : (
-                        Array.from(aggregatedPorts.services.entries()).map(([port, info]) => (
-                          <div key={port} className="rounded bg-slate-900/50 px-3 py-2 text-sm">
-                            <span className="font-semibold text-emerald-400">Port {port}:</span>{' '}
-                            <span className="text-slate-300">{typeof info === 'object' ? Object.keys(info).length + ' probes' : String(info)}</span>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Web Findings */}
-                {(job.aggregate ? Object.keys(job.aggregate.webFindings).length > 0 : aggregatedPorts.webTests.size > 0) && (
-                  <div className="rounded-lg bg-slate-800/50 border border-white/10 p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-                      </svg>
-                      <p className="text-sm font-semibold text-blue-400 uppercase tracking-wide">
-                        Web Findings ({job.aggregate ? Object.keys(job.aggregate.webFindings).length : aggregatedPorts.webTests.size})
-                      </p>
-                    </div>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {job.aggregate ? (
-                        Object.entries(job.aggregate.webFindings).map(([key, value]) => (
-                          <div key={key} className="rounded bg-slate-900/50 px-3 py-2 text-sm">
-                            <span className="font-semibold text-blue-400">{key}:</span>{' '}
-                            <span className="text-slate-300">{value}</span>
-                          </div>
-                        ))
-                      ) : (
-                        Array.from(aggregatedPorts.webTests.entries()).map(([port, info]) => (
-                          <div key={port} className="rounded bg-slate-900/50 px-3 py-2 text-sm">
-                            <span className="font-semibold text-blue-400">Port {port}:</span>{' '}
-                            <span className="text-slate-300">{typeof info === 'object' ? Object.keys(info).length + ' tests' : String(info)}</span>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Notes */}
-                {job.aggregate?.notes && (
-                  <div className="rounded-lg bg-slate-800/50 border border-white/10 p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      <p className="text-sm font-semibold text-slate-400 uppercase tracking-wide">Notes</p>
-                    </div>
-                    <p className="text-sm text-slate-300">{job.aggregate.notes}</p>
+                {/* Port list */}
+                {(job.aggregate?.openPorts.length ?? aggregatedPorts.ports.length) > 0 && (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs text-slate-500 uppercase tracking-wide">Ports:</span>
+                    <span className="text-sm text-slate-300">
+                      {(job.aggregate?.openPorts ?? aggregatedPorts.ports).join(', ')}
+                    </span>
                   </div>
                 )}
               </div>
