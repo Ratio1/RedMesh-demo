@@ -33,7 +33,8 @@ export async function GET(request: Request, { params }: RouteParams) {
 
       return NextResponse.json({
         job: result.job,
-        reports: result.reports
+        reports: result.reports,
+        llmAnalyses: result.llmAnalyses ?? {}
       }, { status: 200 });
     }
 

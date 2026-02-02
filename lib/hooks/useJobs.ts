@@ -8,6 +8,7 @@ interface JobsState {
   jobs: Job[];
   ongoingJobs: Job[];
   completedJobs: Job[];
+  stoppedJobs: Job[];
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
@@ -79,14 +80,16 @@ export default function useJobs(): JobsState {
 
   const split = useMemo(() => {
     const ongoing = jobList.filter((job) => job.status === 'running' || job.status === 'stopping');
-    const completed = jobList.filter((job) => job.status === 'completed' || job.status === 'stopped');
-    return { ongoing, completed };
+    const completed = jobList.filter((job) => job.status === 'completed');
+    const stopped = jobList.filter((job) => job.status === 'stopped');
+    return { ongoing, completed, stopped };
   }, [jobList]);
 
   return {
     jobs: jobList,
     ongoingJobs: split.ongoing,
     completedJobs: split.completed,
+    stoppedJobs: split.stopped,
     loading: loading || jobs === undefined,
     error,
     refresh: loadJobs

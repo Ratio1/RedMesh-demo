@@ -57,6 +57,25 @@ export interface PassHistoryEntry {
   passNr: number;
   completedAt: string;
   reports: Record<string, string>; // node_address -> CID mapping
+  llmAnalysisCid?: string; // CID for LLM analysis report (present for completed passes)
+}
+
+export interface LlmAnalysis {
+  analysisType: string;
+  content: string; // Markdown content
+  createdAt: string;
+  focusAreas: string[] | null;
+  model: string;
+  scanSummary: {
+    hasServiceInfo: boolean;
+    hasWebTests: boolean;
+    openPorts: number;
+  };
+  usage: {
+    completionTokens: number;
+    promptTokens: number;
+    totalTokens: number;
+  };
 }
 
 export interface WorkerReport {

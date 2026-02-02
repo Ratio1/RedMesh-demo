@@ -26,7 +26,8 @@ import {
 } from '../services/redmeshApi';
 import {
   extractCidsFromJobs,
-  fetchReportsByCids
+  fetchReportsByCids,
+  fetchLlmAnalysisByCid
 } from '../services/edgeClient';
 
 function coerceArray<T>(value: unknown): T[] {
@@ -345,7 +346,8 @@ function normalizeJobFromSpecs(specs: JobSpecs): Job {
   const passHistory: PassHistoryEntry[] | undefined = specs.pass_history?.map((entry) => ({
     passNr: entry.pass_nr,
     completedAt: new Date(entry.completed_at * 1000).toISOString(),
-    reports: entry.reports
+    reports: entry.reports,
+    llmAnalysisCid: entry.llm_analysis_cid
   }));
 
   // Next pass at (for continuous monitoring)
@@ -684,6 +686,22 @@ function extractCidsFromJob(job: Job): string[] {
 }
 
 /**
+ * Extract LLM analysis CIDs from a single job's pass_history
+ * Returns a mapping of passNr -> llmAnalysisCid
+ */
+function extractLlmAnalysisCidsFromJob(job: Job): Record<number, string> {
+  const cids: Record<number, string> = {};
+  if (job.passHistory) {
+    for (const pass of job.passHistory) {
+      if (pass.llmAnalysisCid) {
+        cids[pass.passNr] = pass.llmAnalysisCid;
+      }
+    }
+  }
+  return cids;
+}
+
+/**
  * Fetch a single job with its report content from R1FS.
  * Uses get_job_data as the primary endpoint for job specs and pass_history.
  * Falls back to get_job_status for real-time worker data (service_info, web_tests_info).
@@ -693,6 +711,8 @@ export async function fetchJobWithReports(jobId: string): Promise<{
   reports: Record<string, Record<string, unknown>>;
   /** Worker-level detailed scan results from get_job_status (for completed jobs) */
   workerResults?: Job['workers'];
+  /** LLM analysis content for each pass (passNr -> analysis) */
+  llmAnalyses?: Record<number, Record<string, unknown>>;
 } | null> {
   const config = getAppConfig();
 
@@ -738,6 +758,19 @@ export async function fetchJobWithReports(jobId: string): Promise<{
     const cids = extractCidsFromJob(job);
     const reports = cids.length > 0 ? await fetchReportsByCids(cids) : {};
 
+    // Extract and fetch LLM analysis for each pass
+    const llmAnalysisCids = extractLlmAnalysisCidsFromJob(job);
+    const llmAnalyses: Record<number, Record<string, unknown>> = {};
+
+    const llmFetchPromises = Object.entries(llmAnalysisCids).map(async ([passNrStr, cid]) => {
+      const passNr = parseInt(passNrStr, 10);
+      const analysis = await fetchLlmAnalysisByCid(cid);
+      if (analysis) {
+        llmAnalyses[passNr] = analysis;
+      }
+    });
+    await Promise.all(llmFetchPromises);
+
     // For completed/running jobs, also fetch get_job_status for worker-level details
     // This provides service_info, web_tests_info, open_ports from workers
     let workerResults: Job['workers'] | undefined;
@@ -773,7 +806,7 @@ export async function fetchJobWithReports(jobId: string): Promise<{
       job.workerCount = workerResults.length;
     }
 
-    return { job, reports, workerResults };
+    return { job, reports, workerResults, llmAnalyses };
   } catch (error) {
     console.error(`[fetchJobWithReports] Error fetching job ${jobId}:`, error);
     if (error instanceof ApiError) {

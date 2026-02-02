@@ -222,6 +222,7 @@ export interface PassHistoryEntry {
   pass_nr: number;
   completed_at: number;
   reports: Record<string, string>; // node_address -> CID mapping
+  llm_analysis_cid?: string; // CID for LLM analysis (present for completed passes)
 }
 
 // Stop Monitoring Response
